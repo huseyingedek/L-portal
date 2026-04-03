@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+   .butt{
+   text-decoration: none; padding: 15px; background-color: #4753e4; font-family: arial; color: white;
+   }
+</style>
+</head>
+
+<body style="margin: 0px;">     
+     <a href="#" class="butt" id="fullscreen">Tam Ekran Yap</a>
+<video width="100%" height="100%" id="element" controls autoplay loop muted>
+  <source src="reklam-altin.mp4" type="video/mp4">
+  <source src="reklam-altin.mp4" type="video/ogg">
+  Lizay Pýrlanta Video Reklam
+</video>
+
+                     
+     <script>
+            var element = document.getElementById('element');
+            var fullscreen = document.getElementById('fullscreen');
+
+            fullscreen.addEventListener('click',function(){
+                <!--console.log ('it is working'); -->
+                if(element.requestFullscreen){
+                    element.requestFullscreen();
+                } 
+                else if (element.webkitRequestFullscreen){
+                    element.webkitRequestFullscreen();
+                }
+                else if (element.mozRequestFullScreen){
+                    element.mozRequestFullScreen();
+                }
+                else if (element.msRequestFullscreen){
+                    element.msRequestFullscreen();
+                }   
+            });
+        </script>   
+</body>
+</html>

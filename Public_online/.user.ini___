@@ -1,0 +1,11 @@
+[PHP]
+error_reporting=22519
+max_execution_time=300
+max_input_time=300
+open_basedir="D:/vhosts//lizaypirlanta.com\;C:\Windows\Temp\"
+post_max_size=32M
+safe_mode=off
+safe_mode_exec_dir=0
+safe_mode_include_dir=0
+upload_max_filesize=32M
+error_log="D:\vhosts\lizaypirlanta.com\logs\php_errors\online.lizaypirlanta.com\php_error.log"
