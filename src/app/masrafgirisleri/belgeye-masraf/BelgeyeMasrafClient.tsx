@@ -62,8 +62,11 @@ export default function BelgeyeMasrafClient() {
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-      const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW;
-      setDocs(Array.isArray(rows) ? rows : rows ? [rows] : []);
+      const rawRows = Array.isArray(parsed)
+        ? parsed
+        : parsed?.Records?.ROW ?? parsed?.ROW ?? parsed;
+      const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
+      setDocs(rows);
     } catch { setDocs([]); }
     setLoading(false);
   }
