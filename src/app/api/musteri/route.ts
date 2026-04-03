@@ -95,16 +95,40 @@ export async function POST(req: NextRequest) {
   </ROW>
 </XMLCUSTTBL>`;
 
-  // PHP: wsCanias("addCustomer", ["0", $xml, $username, $kisi_sms])
+  const kisi_sms = body.kisi_sms || '0';
+
+  // PHP operation.php: wsCanias("addCustomer", ["0", $xml, $username, $kisi_sms])
+  // İlk çağrı: ISSMSCONF=0 XML ile, 4. parametre kisi_sms
+  // Eğer kisi_sms=1 ise API KVKK+ETK kodlarını döndürür → doğrulama gerekir
   try {
     const result = await callCaniasService('addCustomer', [
       '0',
       xml,
       session.usern,
-      body.kisi_sms || '1',
+      kisi_sms,
     ]);
+
     if (result.status === 'OK') {
-      return NextResponse.json({ success: true, response: result.response });
+      const responseStr = String(result.response || '').trim();
+
+      // SMS istendi ve kod döndü → doğrulama adımı gerekiyor
+      if (kisi_sms === '1' && responseStr.length >= 4) {
+        const kvkk_code = responseStr.substring(0, 4).toUpperCase();
+        const etk_code  = responseStr.substring(4).toUpperCase();
+
+        // Form verilerini ve kodları session'a kaydet
+        const cookieStore2 = await cookies();
+        const session2 = await getIronSession<SessionData>(cookieStore2, sessionOptions);
+        session2.musteri_kvkk    = kvkk_code;
+        session2.musteri_etk     = etk_code;
+        session2.musteri_veriler = JSON.stringify(body);
+        await session2.save();
+
+        return NextResponse.json({ needsVerification: true });
+      }
+
+      // SMS istenmedi veya kod dönmedi → kayıt direkt tamamlandı
+      return NextResponse.json({ success: true, response: responseStr });
     }
     return NextResponse.json({ error: result.response }, { status: 400 });
   } catch (e) {

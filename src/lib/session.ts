@@ -3,6 +3,10 @@ import { SessionOptions } from 'iron-session';
 export interface SessionData {
   login: number;
   usern: string;
+  // Müşteri kaydı SMS doğrulama
+  musteri_kvkk?: string;
+  musteri_etk?: string;
+  musteri_veriler?: string; // JSON stringified form body
   // Ürün Takip - bayi oturumu
   bayi_firma_ad?: string;
   bayi_kisi_tel?: string;

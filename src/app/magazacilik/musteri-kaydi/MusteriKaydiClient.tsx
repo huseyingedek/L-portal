@@ -18,8 +18,12 @@ export default function MusteriKaydiClient() {
     kisi_es_dogum_tarihi: '1975-01-01', kisi_evlilik_tarihi: '1975-01-01',
     kisi_yuzuk_olcusu: '', kisi_cinsiyet: 'Erkek', kisi_sms: '1', kisi_not: '',
   });
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage]               = useState('');
+  const [loading, setLoading]               = useState(false);
+  const [verifyMode, setVerifyMode]         = useState(false);
+  const [verCode, setVerCode]               = useState('');
+  const [verLoading, setVerLoading]         = useState(false);
+  const [verMessage, setVerMessage]         = useState('');
 
   useEffect(() => {
     fetch('/api/musteri?type=ulke').then(r => r.json()).then((data: Ulke[]) => {
@@ -47,19 +51,138 @@ export default function MusteriKaydiClient() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setMessage('');
     const res = await fetch('/api/musteri', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     });
     const data = await res.json();
     setLoading(false);
+
+    if (data.needsVerification) {
+      setVerifyMode(true);
+      return;
+    }
     setMessage(data.success ? 'Müşteri kaydı başarıyla tamamlandı.' : data.error || 'Hata oluştu.');
   }
 
-  const isSuccess = message.includes('başarı');
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setVerLoading(true);
+    setVerMessage('');
+    const res = await fetch('/api/musteri/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userInput: verCode }),
+    });
+    const data = await res.json();
+    setVerLoading(false);
+
+    if (data.success) {
+      const labelMap: Record<string, string> = {
+        KVKK:       'Yalnızca KVKK Kabul Edildi!',
+        ETK:        'Yalnızca ETK Kabul Edildi!',
+        KVKK_ETK:   'KVKK ve ETK Kabul Edildi!',
+        Reddedildi: 'KVKK ve ETK Reddedildi!',
+      };
+      const msg = labelMap[data.result] ?? 'Müşteri kaydı tamamlandı.';
+
+      setVerifyMode(false);
+      setVerCode('');
+
+      if (data.result === 'KVKK') {
+        // PHP'de KVKK sonrası redirect yok → sadece mesaj göster
+        setMessage(msg);
+      } else {
+        // ETK / KVKK_ETK / Reddedildi → PHP redirect gibi formu sıfırla
+        setMessage(msg);
+        setForm({
+          kisi_ad_soyad: '', kisi_tel: '', kisi_eposta: '', kisi_tc: '',
+          kisi_vergi_dairesi: '', kisi_ulke: 'TR', kisi_sehir: '34',
+          kisi_ilce: '', kisi_adres: '', kisi_dogum_tarihi: '1975-01-01',
+          kisi_pasaport_numarasi: '', kisi_pasaport_tarihi: '',
+          kisi_es_dogum_tarihi: '1975-01-01', kisi_evlilik_tarihi: '1975-01-01',
+          kisi_yuzuk_olcusu: '', kisi_cinsiyet: 'Erkek', kisi_sms: '1', kisi_not: '',
+        });
+      }
+    } else {
+      setVerMessage(data.error || 'Doğrulama başarısız.');
+    }
+  }
+
+  const isSuccess = message.includes('başarı') || message.includes('kabul') || message.includes('tamamlandı');
 
   return (
     <div style={{ padding: '28px 20px', maxWidth: 940, margin: '0 auto' }}>
+
+      {/* SMS Doğrulama Modalı */}
+      {verifyMode && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            background: 'var(--card-bg, #1e2230)', borderRadius: 16,
+            padding: '32px 28px', maxWidth: 400, width: '90%',
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <i className="fa-solid fa-message" style={{ fontSize: 32, color: 'var(--accent)', marginBottom: 12, display: 'block' }} />
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
+                SMS Doğrulama
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                Müşterinin telefon numarasına SMS ile bir onay kodu gönderildi.
+                Lütfen müşteriden kodu alarak aşağıya girin.
+              </p>
+            </div>
+
+            <form onSubmit={handleVerify}>
+              <input
+                className="df-inp"
+                type="text"
+                placeholder="Onay kodunu girin..."
+                value={verCode}
+                onChange={e => setVerCode(e.target.value)}
+                autoFocus
+                style={{ textAlign: 'center', fontSize: 20, letterSpacing: 4, fontWeight: 700, marginBottom: 8 }}
+                required
+              />
+              {verMessage && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 12,
+                  background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#f87171',
+                }}>{verMessage}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => { setVerifyMode(false); setVerCode(''); setVerMessage(''); }}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13,
+                  }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={verLoading}
+                  style={{
+                    flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                    background: 'var(--accent)', color: '#fff', cursor: 'pointer',
+                    fontSize: 14, fontWeight: 600,
+                  }}
+                >
+                  {verLoading ? 'Doğrulanıyor...' : 'Onayla'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginBottom: 24 }}>
         <i className="fa-solid fa-user-plus" style={{ marginRight: 10, color: 'var(--accent)' }} />
         Müşteri Kaydı
@@ -82,8 +205,14 @@ export default function MusteriKaydiClient() {
             <input className="df-inp" type="text" value={form.kisi_ad_soyad} onChange={set('kisi_ad_soyad')} required />
           </div>
           <div className="df-field">
-            <label className="df-field-lbl">Tel No</label>
-            <input className="df-inp" type="number" value={form.kisi_tel} onChange={set('kisi_tel')} />
+            <label className="df-field-lbl">Tel No{form.kisi_sms === '1' ? ' *' : ''}</label>
+            <input
+              className="df-inp"
+              type="number"
+              value={form.kisi_tel}
+              onChange={set('kisi_tel')}
+              required={form.kisi_sms === '1'}
+            />
           </div>
           <div className="df-field">
             <label className="df-field-lbl">E-Posta</label>
