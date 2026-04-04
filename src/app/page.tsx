@@ -29,16 +29,17 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
+        // Spinner devam etsin, sayfa geçişi tamamlanana kadar
         window.location.href = '/dashboard';
+        return;
       } else {
         const data = await res.json();
         setError(data.error || 'Giriş başarısız');
       }
     } catch {
       setError('Bağlantı hatası');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }
 
   return (
@@ -204,9 +205,20 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
           {error && <p className="error-msg">{error}</p>}
-          <button type="submit" className="login-btn" disabled={loading}>
+          <button type="submit" className="login-btn" disabled={loading} style={{
+            opacity: loading ? 0.8 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            {loading && (
+              <span style={{
+                width: 16, height: 16, border: '2px solid rgba(255,255,255,0.4)',
+                borderTop: '2px solid white', borderRadius: '50%',
+                display: 'inline-block', animation: 'spin 0.8s linear infinite',
+              }} />
+            )}
             {loading ? 'Giriş yapılıyor...' : 'Oturum Aç'}
           </button>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </form>
       </div>
     </>

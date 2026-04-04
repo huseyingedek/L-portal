@@ -10,6 +10,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   timezone: '+03:00',
+  connectTimeout: 3000,  // 3 saniyede bağlanamazsa hata ver
 });
 
 export default pool;

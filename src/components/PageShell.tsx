@@ -127,7 +127,7 @@ export default function PageShell({ children, usern }: Props) {
 
           <div style={{ flex: 1 }} />
 
-          {/* Sağ: kullanıcı adı */}
+          {/* Sağ: kullanıcı adı + çıkış */}
           {usern && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <div style={{
@@ -143,6 +143,21 @@ export default function PageShell({ children, usern }: Props) {
               {!isMobile && (
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.01em' }}>{usern}</span>
               )}
+              <button
+                onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/'; }}
+                title="Çıkış Yap"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                  color: 'rgba(239,68,68,0.7)', cursor: 'pointer',
+                  fontSize: 13, padding: '5px 8px', borderRadius: 7,
+                  transition: 'background 0.14s, color 0.14s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#f87171'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = 'rgba(239,68,68,0.7)'; }}
+              >
+                <i className="fa-solid fa-right-from-bracket" />
+              </button>
             </div>
           )}
         </div>
