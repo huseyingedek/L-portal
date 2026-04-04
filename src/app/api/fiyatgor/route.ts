@@ -11,12 +11,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const barkod_kodu = (body.barkod_kodu || '').trim().toUpperCase();
+  const magaza_stok = body.magaza_stok === '1' ? '1' : '0';
 
   if (!barkod_kodu) {
     return NextResponse.json({ error: 'Barkod boş olamaz' }, { status: 400 });
   }
 
-  const result = await callCaniasService('RetailBatchCheck', ['P2000C', barkod_kodu]);
+  const result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
 
   if (result.status === 'FL') {
     return NextResponse.json({ error: result.response }, { status: 400 });

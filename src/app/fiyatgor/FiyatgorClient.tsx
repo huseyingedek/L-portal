@@ -209,11 +209,12 @@ const styles = `
    MAIN PAGE
 ═══════════════════════════════════════════════════════ */
 export default function FiyatgorClient() {
-  const [barkod, setBarkod]     = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [notFound, setNotFound] = useState(false);
-  const [cart, setCart]         = useState<CartItem[]>([]);
-  const inputRef                = useRef<HTMLInputElement>(null);
+  const [barkod, setBarkod]         = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [notFound, setNotFound]     = useState(false);
+  const [cart, setCart]             = useState<CartItem[]>([]);
+  const [magazaStok, setMagazaStok] = useState(false);
+  const inputRef                    = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, [loading]);
 
@@ -226,7 +227,7 @@ export default function FiyatgorClient() {
     const res  = await fetch('/api/fiyatgor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barkod_kodu: kod }),
+      body: JSON.stringify({ barkod_kodu: kod, magaza_stok: magazaStok ? '1' : '0' }),
     });
     const data = await res.json();
     setLoading(false);
@@ -332,6 +333,24 @@ export default function FiyatgorClient() {
             Ekle
           </button>
         </div>
+
+        {/* Mağaza stok filtresi */}
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          cursor: 'pointer', marginBottom: 4,
+          color: 'rgba(255,255,255,0.9)',
+          fontSize: 13, fontWeight: 500,
+          textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+          userSelect: 'none',
+        }}>
+          <input
+            type="checkbox"
+            checked={magazaStok}
+            onChange={e => setMagazaStok(e.target.checked)}
+            style={{ width: 16, height: 16, accentColor: '#c53030', cursor: 'pointer' }}
+          />
+          Bulunduğu mağaza stoklarını göster
+        </label>
 
         {/* Bulunamadı */}
         {notFound && (
