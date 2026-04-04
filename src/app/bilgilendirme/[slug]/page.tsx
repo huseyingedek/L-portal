@@ -4,6 +4,7 @@ import { redirect, notFound } from 'next/navigation';
 import { sessionOptions, SessionData } from '@/lib/session';
 import db from '@/lib/db';
 import PageShell from '@/components/PageShell';
+import DbErrorBanner from '@/components/DbErrorBanner';
 
 interface Bilgilendirme { bilgilendirme_baslik: string; bilgilendirme_gorsel_baslik: string; bilgilendirme_icerik: string; }
 interface Props { params: Promise<{ slug: string }>; }
@@ -14,7 +15,17 @@ export default async function BilgilendirmeDetayPage({ params }: Props) {
   if (session.login !== 1) redirect('/');
 
   const { slug } = await params;
-  const [rows] = await db.query('SELECT * FROM `BILGILENDIRMELER` WHERE bilgilendirme_dosya_adi = ?', [decodeURIComponent(slug) + '.php']) as [Bilgilendirme[], unknown];
+  let rows: Bilgilendirme[] = [];
+  try {
+    const [result] = await db.query('SELECT * FROM `BILGILENDIRMELER` WHERE bilgilendirme_dosya_adi = ?', [decodeURIComponent(slug) + '.php']) as [Bilgilendirme[], unknown];
+    rows = result;
+  } catch {
+    return (
+      <PageShell usern={session.usern}>
+        <div style={{ padding: 24 }}><DbErrorBanner /></div>
+      </PageShell>
+    );
+  }
   if (!rows?.length) notFound();
   const row = rows[0];
 

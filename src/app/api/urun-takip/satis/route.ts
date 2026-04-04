@@ -18,29 +18,33 @@ export async function GET(req: NextRequest) {
   const oncelik   = session.bayi_kisi_oncelik;
   const tel       = session.bayi_kisi_tel;
 
-  let rows: unknown[];
+  let rows: unknown[] = [];
 
-  if (oncelik === 5) {
-    if (startDate && endDate) {
-      [rows] = await db.query(
-        'SELECT * FROM SATIS_TAKIPLERI WHERE satis_tarih BETWEEN ? AND ?',
-        [startDate, endDate]
-      ) as [unknown[], unknown];
+  try {
+    if (oncelik === 5) {
+      if (startDate && endDate) {
+        [rows] = await db.query(
+          'SELECT * FROM SATIS_TAKIPLERI WHERE satis_tarih BETWEEN ? AND ?',
+          [startDate, endDate]
+        ) as [unknown[], unknown];
+      } else {
+        [rows] = await db.query('SELECT * FROM SATIS_TAKIPLERI') as [unknown[], unknown];
+      }
     } else {
-      [rows] = await db.query('SELECT * FROM SATIS_TAKIPLERI') as [unknown[], unknown];
+      if (startDate && endDate) {
+        [rows] = await db.query(
+          'SELECT * FROM SATIS_TAKIPLERI WHERE kisi_tel = ? AND satis_tarih BETWEEN ? AND ?',
+          [tel, startDate, endDate]
+        ) as [unknown[], unknown];
+      } else {
+        [rows] = await db.query(
+          'SELECT * FROM SATIS_TAKIPLERI WHERE kisi_tel = ?',
+          [tel]
+        ) as [unknown[], unknown];
+      }
     }
-  } else {
-    if (startDate && endDate) {
-      [rows] = await db.query(
-        'SELECT * FROM SATIS_TAKIPLERI WHERE kisi_tel = ? AND satis_tarih BETWEEN ? AND ?',
-        [tel, startDate, endDate]
-      ) as [unknown[], unknown];
-    } else {
-      [rows] = await db.query(
-        'SELECT * FROM SATIS_TAKIPLERI WHERE kisi_tel = ?',
-        [tel]
-      ) as [unknown[], unknown];
-    }
+  } catch {
+    return NextResponse.json({ rows: [], error: 'Veritabanına bağlanılamadı.' });
   }
 
   return NextResponse.json({ rows });
@@ -65,18 +69,22 @@ export async function POST(req: NextRequest) {
   const zaman = now.toTimeString().slice(0, 8);
   const satisTarihFull = `${satis_tarih} ${zaman}`;
 
-  await db.query(
-    'INSERT INTO SATIS_TAKIPLERI (barkod_no, urun_fiyat, para_birimi, satis_tarih, firma_ad, kisi_ad_soyad, kisi_tel) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [
-      barkod_no.toUpperCase(),
-      urun_fiyat,
-      para_birimi,
-      satisTarihFull,
-      session.bayi_firma_ad,
-      session.bayi_kisi_ad_soyad,
-      session.bayi_kisi_tel,
-    ]
-  );
+  try {
+    await db.query(
+      'INSERT INTO SATIS_TAKIPLERI (barkod_no, urun_fiyat, para_birimi, satis_tarih, firma_ad, kisi_ad_soyad, kisi_tel) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        barkod_no.toUpperCase(),
+        urun_fiyat,
+        para_birimi,
+        satisTarihFull,
+        session.bayi_firma_ad,
+        session.bayi_kisi_ad_soyad,
+        session.bayi_kisi_tel,
+      ]
+    );
+  } catch {
+    return NextResponse.json({ error: 'Veritabanına bağlanılamadı.' }, { status: 503 });
+  }
 
   return NextResponse.json({ success: true });
 }

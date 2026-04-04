@@ -4,6 +4,7 @@ import { redirect, notFound } from 'next/navigation';
 import { sessionOptions, SessionData } from '@/lib/session';
 import db from '@/lib/db';
 import PageShell from '@/components/PageShell';
+import DbErrorBanner from '@/components/DbErrorBanner';
 
 interface Kampanya { kampanya_baslik: string; kampanya_gorsel_baslik: string; kampanya_icerik: string; }
 interface Props { params: Promise<{ slug: string }>; }
@@ -15,10 +16,16 @@ export default async function KampanyaDetayPage({ params }: Props) {
 
   const { slug } = await params;
   const decoded = decodeURIComponent(slug).replace(/^\.\//, '');
-  const [rows] = await db.query(
-    'SELECT * FROM `KAMPANYALAR` WHERE kampanya_dosya_adi = ? OR kampanya_dosya_adi = ?',
-    [decoded + '.php', './' + decoded + '.php']
-  ) as [Kampanya[], unknown];
+  let rows: Kampanya[] = [];
+  try {
+    const [result] = await db.query(
+      'SELECT * FROM `KAMPANYALAR` WHERE kampanya_dosya_adi = ? OR kampanya_dosya_adi = ?',
+      [decoded + '.php', './' + decoded + '.php']
+    ) as [Kampanya[], unknown];
+    rows = result;
+  } catch {
+    return <PageShell usern={session.usern}><div style={{ padding: 24 }}><DbErrorBanner /></div></PageShell>;
+  }
   if (!rows?.length) notFound();
   const row = rows[0];
 

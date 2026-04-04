@@ -1,89 +1,144 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+
+const GOLD = '#F7CA18';
 
 export default function UrunTakipPanelClient({ firmaAd }: { firmaAd: string }) {
-  const router = useRouter();
-
   async function handleLogout() {
     await fetch('/api/urun-takip/logout', { method: 'POST' });
-    router.push('/urun-takip');
+    window.location.href = '/urun-takip';
   }
 
   return (
     <>
       <style>{`
-        .card-text { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-        .bd-placeholder-img { font-size:1.525rem; text-anchor:middle; user-select:none; font-family:calibri; }
-        @media (min-width:768px) { .bd-placeholder-img-lg { font-size:3.5rem; } }
-        .bg-light {
-          background: radial-gradient(circle, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%) !important;
-          min-height: calc(100vh - 56px);
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body {
+          background: #1c1e21;
+          font-family: 'Dosis', sans-serif;
+          min-height: 100vh;
+          color: #fff;
         }
-        .card { border-radius: 11%; }
-        .bd-placeholder-img { border-radius: 18%; }
+        .ut-navbar {
+          background: #111214;
+          border-bottom: 2px solid ${GOLD};
+          padding: 0 24px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .ut-navbar-brand {
+          font-size: 16px;
+          font-weight: 700;
+          color: #fff;
+          letter-spacing: 0.03em;
+        }
+        .ut-navbar-brand span { color: ${GOLD}; }
+        .ut-logout {
+          background: transparent;
+          border: 1px solid ${GOLD};
+          color: ${GOLD};
+          padding: 6px 18px;
+          cursor: pointer;
+          font-family: 'Dosis', sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          transition: all 0.3s;
+        }
+        .ut-logout:hover { background: ${GOLD}; color: #fff; }
+        .ut-sidebar {
+          width: 240px;
+          background: #111214;
+          border-right: 1px solid rgba(247,202,24,0.15);
+          min-height: calc(100vh - 56px);
+          padding: 16px 0;
+          flex-shrink: 0;
+        }
+        .ut-sidebar a {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 20px;
+          color: rgba(255,255,255,0.55);
+          text-decoration: none;
+          font-size: 14px;
+          font-weight: 400;
+          transition: all 0.15s;
+          border-left: 2px solid transparent;
+        }
+        .ut-sidebar a:hover {
+          color: #fff;
+          background: rgba(247,202,24,0.06);
+          border-left-color: ${GOLD};
+        }
+        .ut-sidebar a.active {
+          color: #fff;
+          background: rgba(247,202,24,0.1);
+          border-left-color: ${GOLD};
+        }
+        .ut-sidebar-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: rgba(255,255,255,0.2);
+          padding: 16px 20px 6px;
+          font-weight: 700;
+        }
+        .ut-content {
+          flex: 1;
+          padding: 32px 28px;
+        }
+        .ut-welcome {
+          font-size: 22px;
+          font-weight: 700;
+          color: #fff;
+          margin-bottom: 8px;
+        }
+        .ut-welcome span { color: ${GOLD}; }
+        .ut-desc { font-size: 14px; color: rgba(255,255,255,0.4); }
       `}</style>
+      <link href="https://fonts.googleapis.com/css?family=Dosis:300,400,700" rel="stylesheet" />
 
-      <header>
-        <div className="navbar navbar-dark bg-dark shadow-sm">
-          <div className="container d-flex justify-content-between">
-            <p className="navbar-brand d-flex align-items-center" style={{ margin: 0 }}>
-              <strong>Lizay Pırlanta Ürün Takip Sayfası - {firmaAd}</strong>
-            </p>
-            <p className="navbar-brand d-flex align-items-center" style={{ margin: 0 }}>
-              <button
-                onClick={handleLogout}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Çıkış
-              </button>
-            </p>
-          </div>
+      <nav className="ut-navbar">
+        <div className="ut-navbar-brand">
+          Lizay Pırlanta — <span>Ürün Takip</span>
+          <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: 8 }}>| {firmaAd}</span>
         </div>
-      </header>
+        <button className="ut-logout" onClick={handleLogout}>Çıkış</button>
+      </nav>
 
-      <main role="main">
-        <div className="album py-5 bg-light">
-          <div className="container">
-            <div className="row">
+      <div style={{ display: 'flex' }}>
+        <aside className="ut-sidebar">
+          <div className="ut-sidebar-label">Menü</div>
+          <Link href="/urun-takip/panel" className="active">
+            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>🏠</i>
+            Ana Panel
+          </Link>
+          <Link href="/urun-takip/satis-tablosu">
+            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>📋</i>
+            Satışları Listele
+          </Link>
+          <Link href="/urun-takip/satis-ekle">
+            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>➕</i>
+            Satış Ekle
+          </Link>
+          <div className="ut-sidebar-label" style={{ marginTop: 8 }}>Hesap</div>
+          <a onClick={handleLogout} style={{ cursor: 'pointer' }}>
+            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>🚪</i>
+            Çıkış Yap
+          </a>
+        </aside>
 
-              <div className="col-md-4">
-                <Link href="/urun-takip/satis-tablosu" style={{ textDecoration: 'none' }}>
-                  <div className="card mb-4 shadow-sm">
-                    <svg className="bd-placeholder-img card-img-top" width="100%" height="225"
-                      xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" role="img">
-                      <title>Satışları Listele</title>
-                      <rect width="100%" height="100%" fill="#ff7800" />
-                      <text x="50%" y="50%" fill="#eceeef" dy=".3em" textAnchor="middle">SATIŞLARINI LİSTELE</text>
-                    </svg>
-                    <div className="card-body">
-                      <p className="card-text" style={{ color: 'black' }}>Satışları Listeleme Tablosu</p>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-
-              <div className="col-md-4">
-                <Link href="/urun-takip/satis-ekle" style={{ textDecoration: 'none' }}>
-                  <div className="card mb-4 shadow-sm">
-                    <svg className="bd-placeholder-img card-img-top" width="100%" height="225"
-                      xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" role="img">
-                      <title>Satış Ekle</title>
-                      <rect width="100%" height="100%" fill="#6c00ff" />
-                      <text x="50%" y="50%" fill="#eceeef" dy=".3em" textAnchor="middle">SATIŞ EKLE</text>
-                    </svg>
-                    <div className="card-body">
-                      <p className="card-text" style={{ color: 'black' }}>Satış Ekleme Formu</p>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </main>
+        <main className="ut-content">
+          <div className="ut-welcome">Hoş geldiniz, <span>{firmaAd}</span></div>
+          <div className="ut-desc">Sol menüden işlem yapabilirsiniz.</div>
+        </main>
+      </div>
     </>
   );
 }

@@ -4,6 +4,7 @@ import { redirect, notFound } from 'next/navigation';
 import { sessionOptions, SessionData } from '@/lib/session';
 import db from '@/lib/db';
 import PageShell from '@/components/PageShell';
+import DbErrorBanner from '@/components/DbErrorBanner';
 
 interface Prosedur { prosedur_baslik: string; prosedur_gorsel_baslik: string; prosedur_icerik: string; }
 interface Props { params: Promise<{ slug: string }>; }
@@ -14,7 +15,13 @@ export default async function ProsedurDetayPage({ params }: Props) {
   if (session.login !== 1) redirect('/');
 
   const { slug } = await params;
-  const [rows] = await db.query('SELECT * FROM `PROSEDURLER` WHERE prosedur_dosya_adi = ?', [decodeURIComponent(slug) + '.php']) as [Prosedur[], unknown];
+  let rows: Prosedur[] = [];
+  try {
+    const [result] = await db.query('SELECT * FROM `PROSEDURLER` WHERE prosedur_dosya_adi = ?', [decodeURIComponent(slug) + '.php']) as [Prosedur[], unknown];
+    rows = result;
+  } catch {
+    return <PageShell usern={session.usern}><div style={{ padding: 24 }}><DbErrorBanner /></div></PageShell>;
+  }
   if (!rows?.length) notFound();
   const row = rows[0];
 

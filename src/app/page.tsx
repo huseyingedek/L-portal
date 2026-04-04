@@ -179,7 +179,7 @@ export default function LoginPage() {
       `}</style>
 
       <div className="mobile-screen">
-        <a href="https://online.lizaypirlanta.com/urun-takip/" className="bayi-btn">
+        <a href="https://mobile.lizaypirlanta.com/urun-takip/" className="bayi-btn">
           Bayi Web Girişi
         </a>
 

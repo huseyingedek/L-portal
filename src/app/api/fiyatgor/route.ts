@@ -17,10 +17,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Barkod boş olamaz' }, { status: 400 });
   }
 
-  const result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
+  let result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
+
+  // magaza_stok=1 ile hata aldıysak 0 ile tekrar dene
+  if (result.status === 'FL' && magaza_stok === '1') {
+    result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, '0']);
+  }
 
   if (result.status === 'FL') {
-    return NextResponse.json({ error: result.response }, { status: 400 });
+    return NextResponse.json({ error: 'Ürün bulunamadı' }, { status: 404 });
   }
 
   let sonuc_json: Record<string, Record<string, string>> | null;
