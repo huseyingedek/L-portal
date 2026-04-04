@@ -124,7 +124,3 @@ export async function callCaniasService(
   return { response: raw, status: 'OK' };
 }
 
-// Uygulama başladığında SOAP client'ı ve session'ı önceden ısıt
-getSoapClient()
-  .then(client => getSession(client))
-  .catch(() => { /* sessizce geç */ });
