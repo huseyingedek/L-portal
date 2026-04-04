@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
 
     const result = await callCaniasService('userCheck', [username, password]);
 
-    if (result.status !== 'OK') {
+    if (result.status === 'FL') {
+      // Bağlantı hatası mı yoksa yanlış şifre mi ayırt et
+      const isBaglantiHatasi = result.response.includes('Bağlantı') || result.response.includes('timeout') || result.response.includes('WSDL');
+      if (isBaglantiHatasi) {
+        return NextResponse.json({ error: 'Sunucu bağlantısı kurulamadı, lütfen tekrar deneyin.' }, { status: 503 });
+      }
       return NextResponse.json({ error: 'Kullanıcı adı veya şifre hatalı' }, { status: 401 });
     }
 
