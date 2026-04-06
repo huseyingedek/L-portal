@@ -8,7 +8,7 @@ import PageShell from '@/components/PageShell';
 import DbErrorBanner from '@/components/DbErrorBanner';
 
 const RENKLER = [
-  '#818cf8','#34d399','#f59e0b','#f87171','#60a5fa',
+  '#d63050','#34d399','#f59e0b','#f87171','#60a5fa',
   '#a78bfa','#4ade80','#fb923c','#38bdf8','#e879f9',
   '#2ea568','#12a9d6','#de3b59','#F29500','#905E96',
 ];
@@ -46,7 +46,7 @@ export default async function CalisanKampanyalariPage() {
             <Link href="/calisankampanyalari/ekle" style={{
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
               padding: '6px 14px', borderRadius: 8, color: 'white',
-              backgroundColor: 'var(--color-primary, #818cf8)',
+              backgroundColor: 'var(--color-primary, #d63050)',
             }}>
               <i className="fas fa-plus" style={{ fontSize: 10 }} /> Kampanya Ekle
             </Link>

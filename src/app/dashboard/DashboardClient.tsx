@@ -6,7 +6,7 @@ const QUICK_ACCESS = [
   { href: '/masrafgirisleri/masraf-girisi',  label: 'Masraf Girişi',       icon: 'fa-solid fa-receipt',        color: '#f59e0b' },
   { href: '/masrafgirisleri/masraf-onay',    label: 'Masraf Onayları',     icon: 'fa-solid fa-circle-check',   color: '#10b981' },
   { href: '/masrafgirisleri/fatura-onay',    label: 'Fatura Onayları',     icon: 'fa-solid fa-file-invoice',   color: '#3b82f6' },
-  { href: '/bilgilendirme',                  label: 'Bilgilendirme',       icon: 'fa-solid fa-bell',           color: '#818cf8' },
+  { href: '/bilgilendirme',                  label: 'Bilgilendirme',       icon: 'fa-solid fa-bell',           color: '#d63050' },
   { href: '/prosedurler',                    label: 'Prosedürler',         icon: 'fa-solid fa-book-open',      color: '#06b6d4' },
   { href: '/ik/ise-alim-duyurulari',         label: 'İşe Alım',           icon: 'fa-solid fa-user-tie',       color: '#f43f5e' },
   { href: '/izin-formu',                     label: 'İzin Formu',          icon: 'fa-solid fa-calendar-check', color: '#8b5cf6' },
@@ -26,7 +26,7 @@ interface Props {
 }
 
 const STATS = [
-  { key: 'bilgilendirme' as const, label: 'Bilgilendirme',  icon: 'fa-solid fa-bell',        color: '#818cf8', href: '/bilgilendirme' },
+  { key: 'bilgilendirme' as const, label: 'Bilgilendirme',  icon: 'fa-solid fa-bell',        color: '#d63050', href: '/bilgilendirme' },
   { key: 'prosedur'      as const, label: 'Prosedür',       icon: 'fa-solid fa-book-open',   color: '#06b6d4', href: '/prosedurler' },
   { key: 'kampanya'      as const, label: 'Kampanya',       icon: 'fa-solid fa-tag',         color: '#f59e0b', href: '/calisankampanyalari' },
   { key: 'ik'            as const, label: 'İK Duyurusu',   icon: 'fa-solid fa-users',       color: '#f43f5e', href: '/ik/ise-alim-duyurulari' },
@@ -116,7 +116,7 @@ export default function DashboardClient({ usern, isStoreUser, stats, sonBilgilen
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 14px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fa-solid fa-bell" style={{ color: '#818cf8', fontSize: 13 }} />
+              <i className="fa-solid fa-bell" style={{ color: '#d63050', fontSize: 13 }} />
               <span style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text)' }}>Son Bilgilendirmeler</span>
             </div>
             <Link href="/bilgilendirme" style={{ fontSize: 11.5, color: 'var(--accent)', fontWeight: 500, opacity: 0.8 }}>
@@ -137,10 +137,10 @@ export default function DashboardClient({ usern, isStoreUser, stats, sonBilgilen
                     textDecoration: 'none',
                     transition: 'background 0.12s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.04)')}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(214,48,80,0.08)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#818cf8', flexShrink: 0 }} />
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#d63050', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.gorsel_baslik}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{row.baslik}</div>

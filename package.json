@@ -11,6 +11,7 @@
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
     "@react-pdf/renderer": "^4.3.2",
+    "@zxing/browser": "^0.1.5",
     "iron-session": "^8.0.4",
     "iyzipay": "^2.0.65",
     "mysql2": "^3.20.0",

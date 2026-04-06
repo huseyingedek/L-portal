@@ -10,7 +10,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Orijinal PHP'deki lizzusername cookie'sini oku
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)lizzusername=([^;]*)/);
     if (match) setUsername(decodeURIComponent(match[1]));
@@ -29,7 +28,6 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        // Spinner devam etsin, sayfa geçişi tamamlanana kadar
         window.location.href = '/dashboard';
         return;
       } else {

@@ -67,7 +67,7 @@ const NAV: NavItem[] = [
   { label: 'Ödeme Yap',            icon: 'fa-solid fa-credit-card',    href: '/odeme-sayfasi' },
 ];
 
-const ACCENT = '#818cf8';
+const ACCENT = '#d63050';
 const W_FULL = 240;
 const W_SLIM = 58;
 
@@ -135,8 +135,9 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
         position: 'fixed', top: 0, left: 0,
         height: '100vh',
         width,
-        background: 'linear-gradient(180deg, #06080f 0%, #070a14 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.05)',
+        background: 'linear-gradient(180deg, #0f0710 0%, #130912 40%, #150a14 100%)',
+        borderRight: '1px solid rgba(214,48,80,0.22)',
+        boxShadow: '2px 0 24px rgba(0,0,0,0.5)',
         zIndex: 40,
         display: 'flex',
         flexDirection: 'column',
@@ -147,37 +148,38 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
       }}>
         {/* Logo satırı */}
         <div style={{
-          height: 54, flexShrink: 0,
+          height: 58, flexShrink: 0,
           display: 'flex', alignItems: 'center',
           justifyContent: slim ? 'center' : 'flex-start',
-          padding: slim ? 0 : '0 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          padding: slim ? 0 : '0 18px',
+          borderBottom: '2px solid rgba(214,48,80,0.22)',
+          background: 'linear-gradient(90deg, rgba(214,48,80,0.06) 0%, transparent 100%)',
           overflow: 'hidden',
         }}>
           <Link
             href="/dashboard"
             onClick={isMobile ? onMobileClose : undefined}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', overflow: 'hidden' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 11, textDecoration: 'none', overflow: 'hidden' }}
           >
             <div style={{
-              width: 30, height: 30, borderRadius: 10, flexShrink: 0,
-              background: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)',
+              width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+              background: 'linear-gradient(135deg, #d63050 0%, #8a1a30 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
+              boxShadow: '0 4px 16px rgba(214,48,80,0.5), inset 0 1px 0 rgba(255,255,255,0.15)',
             }}>
-              <i className="fa-solid fa-gem" style={{ color: 'white', fontSize: 12 }} />
+              <i className="fa-solid fa-gem" style={{ color: 'white', fontSize: 13 }} />
             </div>
             {!slim && (
               <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontWeight: 800, fontSize: 15, color: '#e2e8f0', whiteSpace: 'nowrap', letterSpacing: '-0.02em' }}>Lizay</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: -1 }}>Portal</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: '#f5eaee', whiteSpace: 'nowrap', letterSpacing: '0.02em' }}>Lizay</div>
+                <div style={{ fontSize: 9.5, color: 'rgba(214,48,80,0.6)', whiteSpace: 'nowrap', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 1, fontWeight: 600 }}>Pırlanta Portal</div>
               </div>
             )}
           </Link>
         </div>
 
         {/* Menü öğeleri */}
-        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 0 8px' }}>
+        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 0' }}>
           {nav.map(item => {
             if (item.href && !item.children) {
               const active = isActive(item.href);
@@ -192,20 +194,21 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                     alignItems: 'center',
                     justifyContent: slim ? 'center' : 'flex-start',
                     gap: slim ? 0 : 10,
-                    margin: slim ? '2px 0' : '1px 8px',
-                    padding: slim ? '10px 0' : '8px 10px',
-                    fontSize: 13,
-                    fontWeight: active ? 600 : 400,
-                    color: active ? '#fff' : 'rgba(255,255,255,0.5)',
+                    margin: slim ? '2px 0' : '2px 10px',
+                    padding: slim ? '11px 0' : '9px 12px',
+                    fontSize: 12.5,
+                    fontWeight: active ? 700 : 400,
+                    color: active ? '#f5eaee' : 'rgba(255,255,255,0.48)',
                     background: active
-                      ? 'linear-gradient(90deg, rgba(99,102,241,0.22) 0%, rgba(99,102,241,0.06) 100%)'
+                      ? 'linear-gradient(90deg, rgba(214,48,80,0.28) 0%, rgba(214,48,80,0.05) 100%)'
                       : 'transparent',
-                    borderRadius: slim ? 0 : 8,
-                    borderLeft: slim ? 'none' : `2px solid ${active ? '#818cf8' : 'transparent'}`,
+                    borderRadius: slim ? 0 : 9,
+                    borderLeft: slim ? 'none' : `2px solid ${active ? '#d63050' : 'transparent'}`,
                     textDecoration: 'none',
-                    transition: 'background 0.14s, color 0.14s',
+                    transition: 'all 0.15s',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
+                    letterSpacing: active ? '0.01em' : undefined,
                   }}
                 >
                   <i className={item.icon} style={{
@@ -213,7 +216,7 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                     width: slim ? 'auto' : 16,
                     textAlign: 'center',
                     flexShrink: 0,
-                    color: active ? '#818cf8' : undefined,
+                    color: active ? '#d63050' : 'rgba(255,255,255,0.3)',
                   }} />
                   {!slim && item.label}
                 </Link>
@@ -233,8 +236,8 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     padding: '10px 0', margin: '2px 0',
-                    color: activeSection ? '#818cf8' : 'rgba(255,255,255,0.5)',
-                    background: activeSection ? 'rgba(99,102,241,0.15)' : 'transparent',
+                    color: activeSection ? '#d63050' : 'rgba(255,255,255,0.6)',
+                    background: activeSection ? 'rgba(214,48,80,0.16)' : 'transparent',
                     textDecoration: 'none',
                     transition: 'background 0.14s, color 0.14s',
                   }}
@@ -254,9 +257,9 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                     fontWeight: activeSection ? 600 : 400,
                     color: activeSection ? '#fff' : 'rgba(255,255,255,0.5)',
                     background: activeSection
-                      ? 'linear-gradient(90deg, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.04) 100%)'
+                      ? 'linear-gradient(90deg, rgba(214,48,80,0.2) 0%, rgba(214,48,80,0.04) 100%)'
                       : 'transparent',
-                    borderLeft: `2px solid ${activeSection ? '#818cf8' : 'transparent'}`,
+                    borderLeft: `2px solid ${activeSection ? '#d63050' : 'transparent'}`,
                     borderTop: 'none', borderRight: 'none', borderBottom: 'none',
                     cursor: 'pointer', textAlign: 'left',
                     borderRadius: 8,
@@ -264,7 +267,7 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                     whiteSpace: 'nowrap', overflow: 'hidden',
                   }}
                 >
-                  <i className={item.icon} style={{ fontSize: 13, width: 16, textAlign: 'center', flexShrink: 0, color: activeSection ? '#818cf8' : undefined }} />
+                  <i className={item.icon} style={{ fontSize: 13, width: 16, textAlign: 'center', flexShrink: 0, color: activeSection ? '#d63050' : undefined }} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
                   <i
                     className="fa-solid fa-chevron-right"
@@ -291,9 +294,9 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                           padding: '6px 10px 6px 36px',
                           fontSize: 12.5,
                           fontWeight: active ? 600 : 400,
-                          color: active ? '#818cf8' : 'rgba(255,255,255,0.42)',
-                          background: active ? 'rgba(99,102,241,0.1)' : 'transparent',
-                          borderLeft: `2px solid ${active ? '#818cf8' : 'transparent'}`,
+                          color: active ? '#d63050' : 'rgba(255,255,255,0.6)',
+                          background: active ? 'rgba(214,48,80,0.12)' : 'transparent',
+                          borderLeft: `2px solid ${active ? '#d63050' : 'transparent'}`,
                           borderRadius: 7,
                           margin: '1px 0',
                           textDecoration: 'none',
@@ -301,7 +304,7 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         }}
                       >
-                        {active && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#818cf8', flexShrink: 0 }} />}
+                        {active && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#d63050', flexShrink: 0 }} />}
                         {child.label}
                       </Link>
                     );
@@ -315,7 +318,7 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
         {/* Alt kısım: mobilde IAS linkleri */}
         {isMobile && (
           <div style={{
-            borderTop: '1px solid rgba(255,255,255,0.05)',
+            borderTop: '1px solid rgba(214,48,80,0.18)',
             padding: '10px 14px', flexShrink: 0,
             display: 'flex', flexDirection: 'column', gap: 6,
           }}>
@@ -337,29 +340,30 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
         {/* Alt kısım: kullanıcı */}
         {usern && (
           <div style={{
-            borderTop: '1px solid rgba(255,255,255,0.05)',
-            padding: slim ? '12px 0' : '12px 12px',
+            borderTop: '1px solid rgba(214,48,80,0.2)',
+            background: 'rgba(214,48,80,0.04)',
+            padding: slim ? '12px 0' : '12px 14px',
             flexShrink: 0,
           }}>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 9,
+              display: 'flex', alignItems: 'center', gap: 10,
               justifyContent: slim ? 'center' : 'flex-start',
             }}>
               <div style={{
-                width: slim ? 28 : 30, height: slim ? 28 : 30,
-                borderRadius: 9,
-                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                width: 32, height: 32,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #d63050, #8a1a30)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800, color: 'white', flexShrink: 0,
+                fontSize: 12, fontWeight: 800, color: 'white', flexShrink: 0,
                 letterSpacing: '0.02em',
-                boxShadow: '0 2px 8px rgba(79,70,229,0.4)',
+                boxShadow: '0 3px 10px rgba(214,48,80,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
               }}>
                 {usern.charAt(0).toUpperCase()}
               </div>
               {!slim && (
-                <div style={{ overflow: 'hidden' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{usern}</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', letterSpacing: '0.05em' }}>Kullanıcı</div>
+                <div style={{ overflow: 'hidden', flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#f5eaee', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.02em' }}>{usern}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(214,48,80,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginTop: 1 }}>Aktif Oturum</div>
                 </div>
               )}
             </div>

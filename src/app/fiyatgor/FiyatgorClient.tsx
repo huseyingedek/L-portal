@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { BrowserMultiFormatReader } from '@zxing/browser';
+import { NotFoundException } from '@zxing/library';
 
 interface UrunRow {
   BARKOD: string; URUNADI: string; SONFIYAT: string; SABITFIYAT: string;
@@ -45,9 +47,14 @@ const styles = `
     max-width: 520px;
     margin-bottom: 6px;
   }
-  .fiyat-search input {
+  .fiyat-input-wrap {
     flex: 1;
-    padding: 13px 18px;
+    position: relative;
+    min-width: 0;
+  }
+  .fiyat-input-wrap input {
+    width: 100%;
+    padding: 13px 50px 13px 18px;
     border-radius: 12px;
     border: 2px solid rgba(255,255,255,0.4);
     background: rgba(255,255,255,0.96);
@@ -55,9 +62,29 @@ const styles = `
     font-size: 16px;
     outline: none;
     box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-    min-width: 0;
+    box-sizing: border-box;
   }
-  .fiyat-search button {
+  .btn-camera {
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(197,48,48,0.12);
+    color: #c53030;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+  .btn-camera:hover  { background: rgba(197,48,48,0.22); }
+  .btn-camera:active { background: rgba(197,48,48,0.32); }
+  .fiyat-search button.btn-add {
     padding: 13px 22px;
     border-radius: 12px;
     border: none;
@@ -184,11 +211,150 @@ const styles = `
     flex-wrap: wrap;
     gap: 8px;
   }
+  /* ─── Scanner Modal ─── */
+  .scanner-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0,0,0,0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .scanner-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+  }
+  .scanner-title {
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    flex: 1;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+  .scanner-close {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    border-radius: 50%;
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .scanner-flip {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    border-radius: 50%;
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .scanner-video-wrap {
+    position: relative;
+    width: min(94vw, 440px);
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #111;
+  }
+  .scanner-video-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* Tarama çerçevesi köşeleri */
+  .scanner-frame {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .scanner-frame::before,
+  .scanner-frame::after {
+    content: '';
+    position: absolute;
+    width: 52px; height: 52px;
+    border-color: #c53030;
+    border-style: solid;
+  }
+  .scanner-frame::before {
+    top: 18px; left: 18px;
+    border-width: 4px 0 0 4px;
+    border-radius: 6px 0 0 0;
+  }
+  .scanner-frame::after {
+    top: 18px; right: 18px;
+    border-width: 4px 4px 0 0;
+    border-radius: 0 6px 0 0;
+  }
+  .scanner-frame-bottom {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .scanner-frame-bottom::before,
+  .scanner-frame-bottom::after {
+    content: '';
+    position: absolute;
+    width: 52px; height: 52px;
+    border-color: #c53030;
+    border-style: solid;
+  }
+  .scanner-frame-bottom::before {
+    bottom: 18px; left: 18px;
+    border-width: 0 0 4px 4px;
+    border-radius: 0 0 0 6px;
+  }
+  .scanner-frame-bottom::after {
+    bottom: 18px; right: 18px;
+    border-width: 0 4px 4px 0;
+    border-radius: 0 0 6px 0;
+  }
+  /* Tarama çizgisi animasyonu */
+  @keyframes scanLine {
+    0%   { top: 14%; opacity: 1; }
+    50%  { top: 82%; opacity: 1; }
+    100% { top: 14%; opacity: 1; }
+  }
+  .scanner-line {
+    position: absolute;
+    left: 14%; right: 14%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #c53030, transparent);
+    animation: scanLine 2s ease-in-out infinite;
+    border-radius: 2px;
+  }
+  .scanner-hint {
+    margin-top: 20px;
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    text-align: center;
+    max-width: 300px;
+  }
+  .scanner-error {
+    color: #fc8181;
+    font-size: 14px;
+    text-align: center;
+    padding: 0 24px;
+    margin-top: 16px;
+    line-height: 1.5;
+  }
   /* ─── MOBİL ─── */
   @media (max-width: 480px) {
     .fiyat-wrap { background-attachment: scroll; padding: 18px 10px 70px; }
-    .fiyat-search input  { padding: 11px 14px; font-size: 15px; }
-    .fiyat-search button { padding: 11px 16px; font-size: 14px; }
+    .fiyat-input-wrap input { padding: 11px 46px 11px 14px; font-size: 15px; }
+    .fiyat-search button.btn-add { padding: 11px 16px; font-size: 14px; }
     .btn-clear span, .btn-send span { display: none; }
     .btn-clear, .btn-send { padding: 7px 11px; }
     .card-main-row { flex-direction: column; }
@@ -199,11 +365,165 @@ const styles = `
     .card-img-box img { width: 100%; height: 180px; object-fit: cover; }
     .card-info { padding: 12px 14px; }
     .cart-total { padding: 12px 16px; }
+    .scanner-video-wrap { width: 96vw; aspect-ratio: 3/4; }
   }
   @media (max-width: 360px) {
     .card-bottom { flex-direction: column; align-items: flex-start; }
   }
 `;
+
+/* ═══════════════════════════════════════════════════════
+   BARCODE SCANNER MODAL
+═══════════════════════════════════════════════════════ */
+interface ScannerModalProps {
+  onDetected: (code: string) => void;
+  onClose: () => void;
+}
+
+function BarcodeScannerModal({ onDetected, onClose }: ScannerModalProps) {
+  const videoRef      = useRef<HTMLVideoElement>(null);
+  const controlsRef   = useRef<{ stop: () => void } | null>(null);
+  const onDetectedRef = useRef(onDetected);
+  const [error, setError]       = useState('');
+  const [cameras, setCameras]   = useState<MediaDeviceInfo[]>([]);
+  const [camIndex, setCamIndex] = useState(0);
+  const detectedRef             = useRef(false);
+
+  useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
+
+  function stopCamera() {
+    controlsRef.current?.stop();
+    controlsRef.current = null;
+    const video = videoRef.current;
+    if (video?.srcObject instanceof MediaStream) {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+    BrowserMultiFormatReader.releaseAllStreams();
+  }
+
+  const startScanning = useCallback(async (deviceId?: string, cancelled?: { current: boolean }) => {
+    if (!videoRef.current) return;
+    setError('');
+
+    try {
+      stopCamera();
+      // OS'un stream'i tam serbest bırakması için bekle
+      await new Promise(r => setTimeout(r, 150));
+      if (cancelled?.current) return;
+
+      const reader = new BrowserMultiFormatReader();
+      const constraints: MediaTrackConstraints = deviceId
+        ? { deviceId: { exact: deviceId } }
+        : { facingMode: 'environment' };
+
+      const controls = await reader.decodeFromConstraints(
+        { video: constraints },
+        videoRef.current,
+        (result, err) => {
+          if (result && !detectedRef.current) {
+            detectedRef.current = true;
+            onDetectedRef.current(result.getText());
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn('[scanner]', err);
+          }
+        }
+      );
+
+      // StrictMode cleanup çalıştıysa controls'ü hemen durdur
+      if (cancelled?.current) {
+        controls.stop();
+        BrowserMultiFormatReader.releaseAllStreams();
+      } else {
+        controlsRef.current = controls;
+      }
+    } catch (e: unknown) {
+      if (cancelled?.current) return;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('notallowed')) {
+        setError('Kamera izni reddedildi. Lütfen tarayıcı ayarlarından kamera iznini verin.');
+      } else if (msg.toLowerCase().includes('notfound') || msg.toLowerCase().includes('devicenotfound')) {
+        setError('Kamera bulunamadı. Cihazınızda kamera olduğundan emin olun.');
+      } else {
+        setError('Kamera başlatılamadı: ' + msg);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const cancelled = { current: false };
+
+    BrowserMultiFormatReader.listVideoInputDevices()
+      .then(devices => {
+        if (cancelled.current) return;
+        setCameras(devices);
+        const backIdx = devices.findIndex(d =>
+          d.label.toLowerCase().includes('back') ||
+          d.label.toLowerCase().includes('arka') ||
+          d.label.toLowerCase().includes('environment')
+        );
+        const idx = backIdx >= 0 ? backIdx : 0;
+        setCamIndex(idx);
+        startScanning(devices[idx]?.deviceId, cancelled);
+      })
+      .catch(() => { if (!cancelled.current) startScanning(undefined, cancelled); });
+
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      cancelled.current = true;
+      stopCamera();
+      document.body.style.overflow = '';
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function flipCamera() {
+    if (cameras.length < 2) return;
+    const next = (camIndex + 1) % cameras.length;
+    setCamIndex(next);
+    detectedRef.current = false;
+    // Eski stream'i önce durdur, OS'un kamerayı serbest bırakması için kısa bekleme
+    stopCamera();
+    setTimeout(() => startScanning(cameras[next].deviceId), 300);
+  }
+
+  return (
+    <div className="scanner-overlay">
+      <div className="scanner-header">
+        <button className="scanner-flip" onClick={flipCamera} title="Kamera değiştir"
+          style={{ visibility: cameras.length >= 2 ? 'visible' : 'hidden' }}>
+          <i className="fa-solid fa-rotate" />
+        </button>
+        <span className="scanner-title">Barkod veya QR kodu kameraya tutun</span>
+        <button className="scanner-close" onClick={onClose} title="Kapat">
+          <i className="fa-solid fa-xmark" />
+        </button>
+      </div>
+
+      {error ? (
+        <div className="scanner-error">
+          <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 32, display: 'block', marginBottom: 12 }} />
+          {error}
+        </div>
+      ) : (
+        <>
+          <div className="scanner-video-wrap">
+            <video ref={videoRef} muted playsInline autoPlay />
+            <div className="scanner-frame" />
+            <div className="scanner-frame-bottom" />
+            <div className="scanner-line" />
+          </div>
+          <p className="scanner-hint">
+            Barkodu çerçeve içinde ortalayın. Tespit edilince otomatik kapanır.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════
    MAIN PAGE
@@ -214,20 +534,23 @@ export default function FiyatgorClient() {
   const [notFound, setNotFound]     = useState(false);
   const [cart, setCart]             = useState<CartItem[]>([]);
   const [magazaStok, setMagazaStok] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const inputRef                    = useRef<HTMLInputElement>(null);
+  const magazaStokRef               = useRef(magazaStok);
 
-  useEffect(() => { inputRef.current?.focus(); }, [loading]);
+  useEffect(() => { magazaStokRef.current = magazaStok; }, [magazaStok]);
+  useEffect(() => { if (!loading) inputRef.current?.focus(); }, [loading]);
 
-  async function search() {
-    const kod = barkod.trim().toUpperCase();
-    if (!kod) return;
+  async function searchWithCode(kod: string) {
+    const trimmed = kod.trim().toUpperCase();
+    if (!trimmed) return;
     setLoading(true);
     setNotFound(false);
 
     const res  = await fetch('/api/fiyatgor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barkod_kodu: kod, magaza_stok: magazaStok ? '1' : '0' }),
+      body: JSON.stringify({ barkod_kodu: trimmed, magaza_stok: magazaStokRef.current ? '1' : '0' }),
     });
     const data = await res.json();
     setLoading(false);
@@ -245,29 +568,35 @@ export default function FiyatgorClient() {
       options = keys.map(k => data[k] as UrunRow);
     }
 
-    const uid = kod + '_' + Date.now();
+    const uid = trimmed + '_' + Date.now();
     const existing = cart.find(
       c => c.product.BARKOD === options[0].BARKOD &&
            c.product.STOKACIKLAMA === options[0].STOKACIKLAMA
     );
     if (existing) {
-      // Zaten sepette → adedi +1, kartı en üste taşı
       setCart(prev => {
         const updated = prev.map(c =>
           c.uid === existing.uid ? { ...c, qty: c.qty + 1 } : c
         );
         const idx = updated.findIndex(c => c.uid === existing.uid);
         if (idx > 0) {
-          // en üste taşı
           const [item] = updated.splice(idx, 1);
           return [item, ...updated];
         }
         return updated;
       });
     } else {
-      // Yeni ürün → en üste ekle
       setCart(prev => [{ uid, product: options[0], options, qty: 1 }, ...prev]);
     }
+  }
+
+  function handleManualSearch() {
+    searchWithCode(barkod);
+  }
+
+  function handleScanned(code: string) {
+    setScannerOpen(false);
+    searchWithCode(code);
   }
 
   function changeQty(uid: string, delta: number) {
@@ -291,6 +620,14 @@ export default function FiyatgorClient() {
   return (
     <>
       <style>{styles}</style>
+
+      {/* Scanner modal */}
+      {scannerOpen && (
+        <BarcodeScannerModal
+          onDetected={handleScanned}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
 
       <div className="fiyat-wrap" style={{ backgroundImage: "url('/fiyatgor-bg.jpg')" }}>
 
@@ -318,17 +655,27 @@ export default function FiyatgorClient() {
 
         {/* Arama */}
         <div className="fiyat-search">
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="text"
-            value={barkod}
-            onChange={e => { setBarkod(e.target.value); setNotFound(false); }}
-            onKeyDown={e => e.key === 'Enter' && search()}
-            placeholder="Barkod okutun veya girin..."
-            autoFocus
-          />
-          <button onClick={search} disabled={loading}>
+          <div className="fiyat-input-wrap">
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="text"
+              value={barkod}
+              onChange={e => { setBarkod(e.target.value); setNotFound(false); }}
+              onKeyDown={e => e.key === 'Enter' && handleManualSearch()}
+              placeholder="Barkod okutun veya girin..."
+              autoFocus
+            />
+            <button
+              className="btn-camera"
+              onClick={() => setScannerOpen(true)}
+              disabled={loading}
+              title="Kamera ile tara"
+            >
+              <i className="fa-solid fa-camera" />
+            </button>
+          </div>
+          <button className="btn-add" onClick={handleManualSearch} disabled={loading}>
             <i className="fa-solid fa-barcode" style={{ marginRight: 6 }} />
             Ekle
           </button>
@@ -449,8 +796,8 @@ interface CartCardProps {
   onStoreChange: (barkod: string) => void;
 }
 
-const SNAP_OPEN  = -80;   // px kaydırınca açık kalır
-const SNAP_CLOSE = -30;   // bu kadarın altında kapanır
+const SNAP_OPEN  = -80;
+const SNAP_CLOSE = -30;
 
 function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
   const { product, options, qty } = item;
@@ -460,13 +807,12 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
 
   const [offset, setOffset]     = useState(0);
   const startX    = useRef(0);
-  const startOff  = useRef(0);   // kaydırma başındaki offset
+  const startOff  = useRef(0);
   const dragging  = useRef(false);
 
   const f = (n: number) =>
     new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-  /* ── Touch handlers ── */
   function onTouchStart(e: React.TouchEvent) {
     startX.current   = e.touches[0].clientX;
     startOff.current = offset;
@@ -477,14 +823,12 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
     if (!dragging.current) return;
     const dx  = e.touches[0].clientX - startX.current;
     const raw = startOff.current + dx;
-    // Sadece sola kaydır (negatif), max SNAP_OPEN px
     const clamped = Math.min(0, Math.max(SNAP_OPEN, raw));
     setOffset(clamped);
   }
 
   function onTouchEnd() {
     dragging.current = false;
-    // snap: yeterince kaydırdıysa aç, yoksa kapat
     if (offset < SNAP_CLOSE) {
       setOffset(SNAP_OPEN);
     } else {
@@ -492,7 +836,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
     }
   }
 
-  /* ── Mouse (desktop test) ── */
   function onMouseDown(e: React.MouseEvent) {
     startX.current   = e.clientX;
     startOff.current = offset;
@@ -510,7 +853,7 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
     else setOffset(0);
   }
 
-  const deleteReveal = Math.abs(offset); // 0..80
+  const deleteReveal = Math.abs(offset);
 
   const badges = [
     product.GOLDK   ? { icon: 'fa-ring',        label: product.GOLDK }         : null,
@@ -521,7 +864,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
 
   return (
     <div className="swipe-wrapper">
-      {/* Arkada kırmızı sil butonu */}
       <div
         className="swipe-delete-btn"
         style={{ opacity: deleteReveal / 80 }}
@@ -531,7 +873,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
         <span>SİL</span>
       </div>
 
-      {/* Üste kayan kart */}
       <div
         className="swipe-card-inner"
         style={{ transform: `translateX(${offset}px)` }}
@@ -543,10 +884,8 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseUp}
       >
-        {/* Ana satır */}
         <div className="card-main-row">
 
-          {/* Resim */}
           <div className="card-img-box">
             {product.IMGBASE64
               // eslint-disable-next-line @next/next/no-img-element
@@ -555,10 +894,8 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
             }
           </div>
 
-          {/* Bilgi */}
           <div className="card-info">
 
-            {/* Başlık */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a2e', lineHeight: 1.4, wordBreak: 'break-word' }}>
@@ -566,7 +903,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                 </div>
                 <div style={{ fontSize: 11, color: '#bbb', marginTop: 1 }}>{product.BARKOD}</div>
               </div>
-              {/* ✕ yalnızca masaüstünde göster — mobilde swipe var */}
               <button
                 onClick={() => onRemove()}
                 title="Kaldır"
@@ -581,7 +917,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
               </button>
             </div>
 
-            {/* Badge'ler */}
             {badges.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 7px', marginTop: 2 }}>
                 {badges.map((b, i) => b && (
@@ -597,7 +932,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
               </div>
             )}
 
-            {/* Fiyat + qty */}
             <div className="card-bottom">
               <div>
                 <div style={{ fontSize: 11, color: '#aaa', marginBottom: 1 }}>
@@ -608,7 +942,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                 </div>
               </div>
 
-              {/* +/- */}
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <button
                   onClick={() => onQty(-1)}
@@ -647,7 +980,6 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
           </div>
         </div>
 
-        {/* Mağaza şeridi */}
         <div style={{
           borderTop: '1px solid #f0f0f0', padding: '9px 14px',
           display: 'flex', alignItems: 'center', gap: 9,

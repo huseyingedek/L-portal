@@ -82,7 +82,7 @@ export default function GlobalError({ error, reset }: Props) {
           <button
             onClick={reset}
             style={{
-              backgroundColor: '#818cf8',
+              backgroundColor: '#d63050',
               color: 'white',
               border: 'none',
               padding: '10px 22px',

@@ -74,7 +74,7 @@ export default function OdemeClient() {
       }}>
         <div style={{
           width: 34, height: 34, borderRadius: 10,
-          background: 'linear-gradient(135deg,#818cf8,#6366f1)',
+          background: 'linear-gradient(135deg,#d63050,#a82040)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <i className="fa-solid fa-gem" style={{ color: 'white', fontSize: 14 }} />
@@ -162,7 +162,7 @@ export default function OdemeClient() {
             style={{
               width: '100%', marginTop: 20,
               padding: '13px',
-              backgroundColor: loading ? 'rgba(129,140,248,0.4)' : 'var(--accent)',
+              backgroundColor: loading ? 'rgba(214,48,80,0.4)' : 'var(--accent)',
               color: 'white',
               border: 'none', borderRadius: 10,
               fontSize: 15, fontWeight: 600,

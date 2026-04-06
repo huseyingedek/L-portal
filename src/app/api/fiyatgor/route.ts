@@ -19,7 +19,6 @@ export async function POST(req: NextRequest) {
 
   let result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
 
-  // magaza_stok=1 ile hata aldıysak 0 ile tekrar dene
   if (result.status === 'FL' && magaza_stok === '1') {
     result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, '0']);
   }
@@ -35,16 +34,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Veri parse hatası', raw: result.response }, { status: 500 });
   }
 
-  // CANIAS boş/null döndürdüyse bulunamadı say
   if (!sonuc_json || typeof sonuc_json !== 'object') {
     return NextResponse.json({ error: 'Ürün bulunamadı' }, { status: 404 });
   }
 
   const ana_data: Record<string, Record<string, string>> = {};
 
-  // PHP test.php — isset($sonuc_json["ROW"]) karşılığı
   if ('ROW' in sonuc_json) {
-    // Benzer ürün yok
     for (const [, value] of Object.entries(sonuc_json)) {
       ana_data['ROW'] = ana_data['ROW'] || {};
       ana_data['ROW']['BARKOD'] = barkod_kodu;
@@ -78,7 +74,6 @@ export async function POST(req: NextRequest) {
       ana_data['ROW']['IMGBASE64'] = 'data:image/png;base64,' + picture;
     }
   } else {
-    // Benzer ürün var
     for (const [key, value] of Object.entries(sonuc_json)) {
       ana_data[key] = {};
       ana_data[key]['BARKOD'] = value['BARKOD'] || barkod_kodu;

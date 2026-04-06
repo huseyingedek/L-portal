@@ -51,7 +51,7 @@ export default function Navbar({
     <Link href="/dashboard" className="flex items-center gap-2.5">
       <div
         className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: 'linear-gradient(135deg,#818cf8,#6366f1)' }}
+        style={{ background: 'linear-gradient(135deg,#d63050,#a82040)' }}
       >
         <i className="fa-solid fa-gem text-white" style={{ fontSize: 12 }} />
       </div>
