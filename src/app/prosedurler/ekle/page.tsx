@@ -22,6 +22,7 @@ export default function ProsedurEklePage() {
         win.ClassicEditor.create(containerRef.current, {
           link: { defaultProtocol: 'http://' },
           mediaEmbed: { previewsInData: true },
+          ckfinder: { uploadUrl: '/api/upload?module=prosedurler' },
         }).then((editor: unknown) => {
           editorRef.current = editor;
         });

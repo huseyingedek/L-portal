@@ -477,7 +477,6 @@ function BarcodeScannerModal({ onDetected, onClose }: ScannerModalProps) {
       stopCamera();
       document.body.style.overflow = '';
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function flipCamera() {
@@ -485,7 +484,6 @@ function BarcodeScannerModal({ onDetected, onClose }: ScannerModalProps) {
     const next = (camIndex + 1) % cameras.length;
     setCamIndex(next);
     detectedRef.current = false;
-    // Eski stream'i önce durdur, OS'un kamerayı serbest bırakması için kısa bekleme
     stopCamera();
     setTimeout(() => startScanning(cameras[next].deviceId), 300);
   }

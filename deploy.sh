@@ -10,7 +10,7 @@ echo "🚀 Lizay Portal Deploy Başlıyor..."
 
 # ── 1. Bağımlılıklar ──────────────────────────────────
 echo "📦 Bağımlılıklar yükleniyor..."
-npm ci --omit=dev
+npm ci
 
 # ── 2. .env.local hazırla ────────────────────────────
 if [ ! -f ".env.local" ]; then
