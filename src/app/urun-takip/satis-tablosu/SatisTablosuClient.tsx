@@ -123,6 +123,7 @@ export default function SatisTablosuClient({ firmaAd, kisiOncelik }: Props) {
             { href: '/urun-takip/panel', label: 'Ana Panel' },
             { href: '/urun-takip/satis-tablosu', label: 'Satışları Listele' },
             { href: '/urun-takip/satis-ekle', label: 'Satış Ekle' },
+            { href: '/urun-takip/fiyatgor', label: '💎 Fiyat Gör' },
           ].map(item => (
             <Link key={item.href} href={item.href} style={{
               display: 'block', padding: '12px 20px', color: 'rgba(255,255,255,0.55)',

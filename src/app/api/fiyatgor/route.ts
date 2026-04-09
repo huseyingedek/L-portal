@@ -7,7 +7,7 @@ import { callCaniasService } from '@/lib/canias';
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
   const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
-  if (session.login !== 1) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
+  if (session.login !== 1 && !session.bayi_firma_ad) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
 
   const body = await req.json();
   const barkod_kodu = (body.barkod_kodu || '').trim().toUpperCase();

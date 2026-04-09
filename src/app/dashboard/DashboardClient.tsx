@@ -11,6 +11,7 @@ const QUICK_ACCESS = [
   { href: '/ik/ise-alim-duyurulari',         label: 'İşe Alım',           icon: 'fa-solid fa-user-tie',       color: '#f43f5e' },
   { href: '/izin-formu',                     label: 'İzin Formu',          icon: 'fa-solid fa-calendar-check', color: '#8b5cf6' },
   { href: '/magazacilik/musteri-kaydi',      label: 'Müşteri Kaydı',      icon: 'fa-solid fa-user-plus',      color: '#ec4899' },
+  { href: '/fiyatgor',                       label: 'Fiyat Gör',          icon: 'fa-solid fa-barcode',        color: '#c53030' },
 ];
 
 interface DuyuruRow { baslik: string; gorsel_baslik: string; dosya_adi: string; tarih?: string; }

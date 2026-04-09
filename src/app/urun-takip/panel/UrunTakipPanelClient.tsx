@@ -127,6 +127,10 @@ export default function UrunTakipPanelClient({ firmaAd }: { firmaAd: string }) {
             <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>➕</i>
             Satış Ekle
           </Link>
+          <Link href="/urun-takip/fiyatgor">
+            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>💎</i>
+            Fiyat Gör
+          </Link>
           <div className="ut-sidebar-label" style={{ marginTop: 8 }}>Hesap</div>
           <a onClick={handleLogout} style={{ cursor: 'pointer' }}>
             <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>🚪</i>
