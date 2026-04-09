@@ -2,7 +2,7 @@ import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { sessionOptions, SessionData } from '@/lib/session';
-import FiyatgorClient from '@/app/fiyatgor/FiyatgorClient';
+import UrunTakipFiyatgorClient from './UrunTakipFiyatgorClient';
 
 export default async function UrunTakipFiyatgorPage() {
   const cookieStore = await cookies();
@@ -12,5 +12,5 @@ export default async function UrunTakipFiyatgorPage() {
     redirect('/urun-takip');
   }
 
-  return <FiyatgorClient />;
+  return <UrunTakipFiyatgorClient firmaAd={session.bayi_firma_ad} />;
 }

@@ -1,148 +1,77 @@
 'use client';
 
 import Link from 'next/link';
+import UrunTakipLayout from '../_components/UrunTakipLayout';
 
 const GOLD = '#F7CA18';
 
+const CARDS = [
+  { href: '/urun-takip/fiyatgor',      emoji: '💎', title: 'Fiyat Gör',         desc: 'Barkod ile ürün fiyatı sorgula' },
+  { href: '/urun-takip/satis-ekle',    emoji: '➕', title: 'Satış Ekle',         desc: 'Yeni satış kaydı oluştur' },
+  { href: '/urun-takip/satis-tablosu', emoji: '📋', title: 'Satışları Listele', desc: 'Tüm satış kayıtlarını görüntüle' },
+];
+
 export default function UrunTakipPanelClient({ firmaAd }: { firmaAd: string }) {
-  async function handleLogout() {
-    await fetch('/api/urun-takip/logout', { method: 'POST' });
-    window.location.href = '/urun-takip';
-  }
-
   return (
-    <>
+    <UrunTakipLayout firmaAd={firmaAd} activeHref="/urun-takip/panel">
       <style>{`
-        *, *::before, *::after { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; }
-        body {
-          background: #1c1e21;
-          font-family: 'Dosis', sans-serif;
-          min-height: 100vh;
-          color: #fff;
+        .panel-wrap { padding: 24px 16px; }
+        .panel-welcome { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+        .panel-desc { font-size: 13px; color: rgba(255,255,255,0.4); margin-bottom: 24px; }
+        .panel-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 14px;
         }
-        .ut-navbar {
-          background: #111214;
-          border-bottom: 2px solid ${GOLD};
-          padding: 0 24px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-        .ut-navbar-brand {
-          font-size: 16px;
-          font-weight: 700;
-          color: #fff;
-          letter-spacing: 0.03em;
-        }
-        .ut-navbar-brand span { color: ${GOLD}; }
-        .ut-logout {
-          background: transparent;
-          border: 1px solid ${GOLD};
-          color: ${GOLD};
-          padding: 6px 18px;
-          cursor: pointer;
-          font-family: 'Dosis', sans-serif;
-          font-size: 14px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          transition: all 0.3s;
-        }
-        .ut-logout:hover { background: ${GOLD}; color: #fff; }
-        .ut-sidebar {
-          width: 240px;
-          background: #111214;
-          border-right: 1px solid rgba(247,202,24,0.15);
-          min-height: calc(100vh - 56px);
-          padding: 16px 0;
-          flex-shrink: 0;
-        }
-        .ut-sidebar a {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 12px 20px;
-          color: rgba(255,255,255,0.55);
+        .panel-card {
           text-decoration: none;
-          font-size: 14px;
-          font-weight: 400;
-          transition: all 0.15s;
-          border-left: 2px solid transparent;
+          background: linear-gradient(135deg, #1a1c20, #222428);
+          border: 1px solid rgba(247,202,24,0.25);
+          border-radius: 14px;
+          padding: 20px 16px;
+          display: flex; flex-direction: column; gap: 12;
+          transition: border-color 0.2s, transform 0.15s, box-shadow 0.15s;
+          -webkit-tap-highlight-color: transparent;
         }
-        .ut-sidebar a:hover {
-          color: #fff;
-          background: rgba(247,202,24,0.06);
-          border-left-color: ${GOLD};
+        .panel-card:active {
+          transform: scale(0.97);
+          border-color: ${GOLD};
         }
-        .ut-sidebar a.active {
-          color: #fff;
-          background: rgba(247,202,24,0.1);
-          border-left-color: ${GOLD};
+        .panel-card-emoji { font-size: 28px; line-height: 1; }
+        .panel-card-title { color: #fff; font-weight: 700; font-size: 14px; margin-top: 4px; }
+        .panel-card-desc { color: rgba(255,255,255,0.4); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+
+        @media (hover: hover) {
+          .panel-card:hover {
+            border-color: ${GOLD};
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(247,202,24,0.1);
+          }
         }
-        .ut-sidebar-label {
-          font-size: 10px;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          color: rgba(255,255,255,0.2);
-          padding: 16px 20px 6px;
-          font-weight: 700;
+        @media (max-width: 400px) {
+          .panel-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+          .panel-card { padding: 16px 12px; }
         }
-        .ut-content {
-          flex: 1;
-          padding: 32px 28px;
-        }
-        .ut-welcome {
-          font-size: 22px;
-          font-weight: 700;
-          color: #fff;
-          margin-bottom: 8px;
-        }
-        .ut-welcome span { color: ${GOLD}; }
-        .ut-desc { font-size: 14px; color: rgba(255,255,255,0.4); }
       `}</style>
-      <link href="https://fonts.googleapis.com/css?family=Dosis:300,400,700" rel="stylesheet" />
 
-      <nav className="ut-navbar">
-        <div className="ut-navbar-brand">
-          Lizay Pırlanta — <span>Ürün Takip</span>
-          <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: 8 }}>| {firmaAd}</span>
+      <div className="panel-wrap">
+        <div className="panel-welcome">
+          Hoş geldiniz, <span style={{ color: GOLD }}>{firmaAd}</span>
         </div>
-        <button className="ut-logout" onClick={handleLogout}>Çıkış</button>
-      </nav>
+        <div className="panel-desc">Hızlı işlem yapmak için kartları kullanın.</div>
 
-      <div style={{ display: 'flex' }}>
-        <aside className="ut-sidebar">
-          <div className="ut-sidebar-label">Menü</div>
-          <Link href="/urun-takip/panel" className="active">
-            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>🏠</i>
-            Ana Panel
-          </Link>
-          <Link href="/urun-takip/satis-tablosu">
-            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>📋</i>
-            Satışları Listele
-          </Link>
-          <Link href="/urun-takip/satis-ekle">
-            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>➕</i>
-            Satış Ekle
-          </Link>
-          <Link href="/urun-takip/fiyatgor">
-            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>💎</i>
-            Fiyat Gör
-          </Link>
-          <div className="ut-sidebar-label" style={{ marginTop: 8 }}>Hesap</div>
-          <a onClick={handleLogout} style={{ cursor: 'pointer' }}>
-            <i style={{ fontSize: 13, width: 16, textAlign: 'center' }}>🚪</i>
-            Çıkış Yap
-          </a>
-        </aside>
-
-        <main className="ut-content">
-          <div className="ut-welcome">Hoş geldiniz, <span>{firmaAd}</span></div>
-          <div className="ut-desc">Sol menüden işlem yapabilirsiniz.</div>
-        </main>
+        <div className="panel-grid">
+          {CARDS.map(card => (
+            <Link key={card.href} href={card.href} className="panel-card">
+              <div className="panel-card-emoji">{card.emoji}</div>
+              <div>
+                <div className="panel-card-title">{card.title}</div>
+                <div className="panel-card-desc">{card.desc}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
-    </>
+    </UrunTakipLayout>
   );
 }
