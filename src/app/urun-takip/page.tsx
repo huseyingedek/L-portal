@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function UrunTakipPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'kayit' | 'giris' | 'sifre'>('kayit');
+  const [tab, setTab] = useState<'kayit' | 'giris' | 'sifre'>('giris');
   const [loading, setLoading] = useState(false);
 
   const [firmaAd, setFirmaAd]   = useState('');
@@ -211,11 +211,11 @@ export default function UrunTakipPage() {
       <div id="urun-form">
         <div id="userform">
           <ul className="ut-tabs">
-            <li className={tab === 'kayit' ? 'active' : ''}>
-              <a onClick={() => setTab('kayit')}>Kayıt Ol</a>
-            </li>
             <li className={tab === 'giris' || tab === 'sifre' ? 'active' : ''}>
               <a onClick={() => setTab('giris')}>Giriş Yap</a>
+            </li>
+            <li className={tab === 'kayit' ? 'active' : ''}>
+              <a onClick={() => setTab('kayit')}>Kayıt Ol</a>
             </li>
           </ul>
 

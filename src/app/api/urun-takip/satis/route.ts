@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { barkod_no, urun_fiyat, para_birimi, satis_tarih } = body;
+  const { barkod_no, urun_fiyat, para_birimi, satis_tarih, musteri_ad, musteri_soyad } = body;
 
   if (!barkod_no || !urun_fiyat || !satis_tarih) {
     return NextResponse.json({ error: 'Tarih, fiyat ve barkod bilgisi girilmesi zorunludur.' }, { status: 400 });
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await db.query(
-      'INSERT INTO SATIS_TAKIPLERI (barkod_no, urun_fiyat, para_birimi, satis_tarih, firma_ad, kisi_ad_soyad, kisi_tel) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO SATIS_TAKIPLERI (barkod_no, urun_fiyat, para_birimi, satis_tarih, firma_ad, kisi_ad_soyad, kisi_tel, musteri_ad, musteri_soyad) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         barkod_no.toUpperCase(),
         urun_fiyat,
@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
         session.bayi_firma_ad,
         session.bayi_kisi_ad_soyad,
         session.bayi_kisi_tel,
+        musteri_ad || null,
+        musteri_soyad || null,
       ]
     );
   } catch {

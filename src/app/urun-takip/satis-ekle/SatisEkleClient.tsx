@@ -6,11 +6,27 @@ import UrunTakipLayout from '../_components/UrunTakipLayout';
 const GOLD = '#F7CA18';
 
 export default function SatisEkleClient({ firmaAd }: { firmaAd: string }) {
-  const [satisTarih, setSatisTarih] = useState('');
-  const [barkodNo, setBarkodNo]     = useState('');
-  const [urunFiyat, setUrunFiyat]   = useState('');
-  const [paraBirimi, setParaBirimi] = useState('TRY');
-  const [loading, setLoading]       = useState(false);
+  const [satisTarih, setSatisTarih]     = useState('');
+  const [barkodNo, setBarkodNo]         = useState('');
+  const [fiyatDisplay, setFiyatDisplay] = useState('');
+  const [paraBirimi, setParaBirimi]     = useState('TRY');
+  const [musteriAd, setMusteriAd]       = useState('');
+  const [musteriSoyad, setMusteriSoyad] = useState('');
+  const [loading, setLoading]           = useState(false);
+
+  function handleFiyatChange(val: string) {
+    // Sadece rakam ve virgül kabul et
+    const onlyNums = val.replace(/[^0-9,]/g, '');
+    const parts = onlyNums.split(',');
+    const intPart = parts[0].replace(/\./g, '');
+    const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    setFiyatDisplay(parts.length > 1 ? `${formatted},${parts[1].slice(0, 2)}` : formatted);
+  }
+
+  function fiyatToNumber(): string {
+    // 1.200,50 → 1200.50 (API için)
+    return fiyatDisplay.replace(/\./g, '').replace(',', '.');
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -18,13 +34,21 @@ export default function SatisEkleClient({ firmaAd }: { firmaAd: string }) {
     const res = await fetch('/api/urun-takip/satis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barkod_no: barkodNo, urun_fiyat: urunFiyat, para_birimi: paraBirimi, satis_tarih: satisTarih }),
+      body: JSON.stringify({
+        barkod_no: barkodNo,
+        urun_fiyat: fiyatToNumber(),
+        para_birimi: paraBirimi,
+        satis_tarih: satisTarih,
+        musteri_ad: musteriAd,
+        musteri_soyad: musteriSoyad,
+      }),
     });
     const data = await res.json();
     setLoading(false);
     if (data.success) {
       alert('Başarıyla eklendi!');
-      setSatisTarih(''); setBarkodNo(''); setUrunFiyat(''); setParaBirimi('TRY');
+      setSatisTarih(''); setBarkodNo(''); setFiyatDisplay(''); setParaBirimi('TRY');
+      setMusteriAd(''); setMusteriSoyad('');
     } else {
       alert(data.error || 'Hata oluştu.');
     }
@@ -77,16 +101,24 @@ export default function SatisEkleClient({ firmaAd }: { firmaAd: string }) {
         <div className="se-title">➕ Satış Ekle</div>
         <form onSubmit={handleSubmit}>
           <div className="se-group">
-            <label className="se-label">Tarih</label>
-            <input type="date" className="se-input" value={satisTarih} onChange={e => setSatisTarih(e.target.value)} required />
+            <label className="se-label">Müşteri Adı</label>
+            <input type="text" className="se-input" maxLength={30} value={musteriAd} onChange={e => setMusteriAd(e.target.value)} placeholder="Müşteri adı" autoComplete="off" />
+          </div>
+          <div className="se-group">
+            <label className="se-label">Müşteri Soyadı</label>
+            <input type="text" className="se-input" maxLength={80} value={musteriSoyad} onChange={e => setMusteriSoyad(e.target.value)} placeholder="Müşteri soyadı" autoComplete="off" />
           </div>
           <div className="se-group">
             <label className="se-label">Barkod Numarası</label>
             <input type="text" className="se-input" maxLength={8} value={barkodNo} onChange={e => setBarkodNo(e.target.value)} required placeholder="Barkod No" autoComplete="off" />
           </div>
           <div className="se-group">
+            <label className="se-label">Tarih</label>
+            <input type="date" className="se-input" value={satisTarih} onChange={e => setSatisTarih(e.target.value)} required />
+          </div>
+          <div className="se-group">
             <label className="se-label">Fiyat</label>
-            <input type="number" className="se-input" value={urunFiyat} onChange={e => setUrunFiyat(e.target.value)} required placeholder="0.00" step="0.01" inputMode="decimal" />
+            <input type="text" inputMode="decimal" className="se-input" value={fiyatDisplay} onChange={e => handleFiyatChange(e.target.value)} required placeholder="0" autoComplete="off" />
           </div>
           <div className="se-group">
             <label className="se-label">Para Birimi</label>

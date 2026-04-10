@@ -179,8 +179,8 @@ const styles = `
     gap: 0;
   }
   .card-img-box {
-    width: 140px;
-    min-width: 140px;
+    width: 180px;
+    min-width: 180px;
     flex-shrink: 0;
     background: #f8f8f8;
     display: flex;
@@ -190,7 +190,7 @@ const styles = `
   }
   .card-img-box img {
     width: 100%;
-    height: 140px;
+    height: 180px;
     object-fit: cover;
   }
   .card-info {
@@ -204,11 +204,8 @@ const styles = `
   .card-bottom {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-top: auto;
-    padding-top: 8px;
-    border-top: 1px solid #f2f2f2;
-    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding-top: 6px;
     gap: 8px;
   }
   /* ─── Scanner Modal ─── */
@@ -368,7 +365,7 @@ const styles = `
     .scanner-video-wrap { width: 96vw; aspect-ratio: 3/4; }
   }
   @media (max-width: 360px) {
-    .card-bottom { flex-direction: column; align-items: flex-start; }
+    .card-bottom { gap: 6px; }
   }
 `;
 
@@ -687,6 +684,7 @@ export default function FiyatgorClient() {
           fontSize: 13, fontWeight: 500,
           textShadow: '0 1px 3px rgba(0,0,0,0.4)',
           userSelect: 'none',
+          width: '100%', maxWidth: 520, justifyContent: 'flex-start',
         }}>
           <input
             type="checkbox"
@@ -915,8 +913,9 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
               </button>
             </div>
 
-            {badges.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 7px', marginTop: 2 }}>
+            {/* Rozetler (sol) + Fiyat (sağ) — aynı satır */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, marginTop: 6, paddingTop: 8, borderTop: '1px solid #f2f2f2' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 7px' }}>
                 {badges.map((b, i) => b && (
                   <span key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 5,
@@ -928,10 +927,7 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                   </span>
                 ))}
               </div>
-            )}
-
-            <div className="card-bottom">
-              <div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 11, color: '#aaa', marginBottom: 1 }}>
                   {qty > 1 ? `${f(unitPrice)} ₺ × ${qty}` : 'Birim Fiyat'}
                 </div>
@@ -939,7 +935,9 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                   {f(totalPrice)} ₺
                 </div>
               </div>
+            </div>
 
+            <div className="card-bottom">
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <button
                   onClick={() => onQty(-1)}
@@ -975,6 +973,7 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                 </button>
               </div>
             </div>
+
           </div>
         </div>
 
