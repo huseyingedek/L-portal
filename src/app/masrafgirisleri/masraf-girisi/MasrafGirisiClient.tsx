@@ -85,7 +85,10 @@ export default function MasrafGirisiClient() {
       {message ? (
         <div className="df-success">
           <p>{message}</p>
-          <Link href="/masrafgirisleri/masraf-girisi">Yeni Masraf Girişi</Link>
+          <button
+            onClick={() => { setMessage(''); setForm({ InvoiceDate: today, InvoiceQuine: '', InvoiceNumber: '', InvoiceAmount: '', exp_paratp: '0', CostType: '', Stext: '', ppaytype: '1', BusArea: '', InvoiceSharedNumb: docnumb }); setImageFile(null); setCostTypeName(''); setBusAreaName(''); }}
+            style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}
+          >Yeni Masraf Girişi</button>
           <Link href="/dashboard">Ana Menü</Link>
         </div>
       ) : (

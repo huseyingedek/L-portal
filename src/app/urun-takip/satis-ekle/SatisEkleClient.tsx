@@ -102,11 +102,11 @@ export default function SatisEkleClient({ firmaAd }: { firmaAd: string }) {
         <form onSubmit={handleSubmit}>
           <div className="se-group">
             <label className="se-label">Müşteri Adı</label>
-            <input type="text" className="se-input" maxLength={30} value={musteriAd} onChange={e => setMusteriAd(e.target.value)} placeholder="Müşteri adı" autoComplete="off" />
+            <input type="text" className="se-input" maxLength={30} value={musteriAd} onChange={e => setMusteriAd(e.target.value)} placeholder="Müşteri adı" autoComplete="off" required />
           </div>
           <div className="se-group">
             <label className="se-label">Müşteri Soyadı</label>
-            <input type="text" className="se-input" maxLength={80} value={musteriSoyad} onChange={e => setMusteriSoyad(e.target.value)} placeholder="Müşteri soyadı" autoComplete="off" />
+            <input type="text" className="se-input" maxLength={80} value={musteriSoyad} onChange={e => setMusteriSoyad(e.target.value)} placeholder="Müşteri soyadı" autoComplete="off" required />
           </div>
           <div className="se-group">
             <label className="se-label">Barkod Numarası</label>
