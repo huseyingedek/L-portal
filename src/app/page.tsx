@@ -182,7 +182,7 @@ export default function LoginPage() {
         </a>
 
         <div className="header">
-          <h1>Canias ile Giriş</h1>
+          <h1>Ias ile Giriş</h1>
         </div>
 
         <div className="logo" />
@@ -190,14 +190,14 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
           <input
             type="text"
-            placeholder="Canias Kullanıcı Adı"
+            placeholder="Ias Kullanıcı Adı"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
           />
           <input
             type="password"
-            placeholder="Canias Şifre"
+            placeholder="Ias Şifre"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"

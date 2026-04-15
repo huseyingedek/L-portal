@@ -315,28 +315,6 @@ export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobi
           })}
         </nav>
 
-        {/* Alt kısım: mobilde IAS linkleri */}
-        {isMobile && (
-          <div style={{
-            borderTop: '1px solid rgba(214,48,80,0.18)',
-            padding: '10px 14px', flexShrink: 0,
-            display: 'flex', flexDirection: 'column', gap: 6,
-          }}>
-            {[
-              { label: 'IAS Dış İp', href: 'http://176.236.6.140:8099/caniasout.jnlp', sub: '176.236.6.140:8099' },
-              { label: 'IAS İç İp',  href: 'http://192.168.1.50:8099/canias.jnlp',     sub: '192.168.1.50:8099'  },
-              { label: 'JAVA',       href: 'https://media.ias.com.tr/java8/windows/jre-8u191-windows-x64.exe', sub: null },
-            ].map(l => (
-              <a key={l.href} href={l.href} target="_blank" rel="noreferrer"
-                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="fa-solid fa-link" style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }} />
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>{l.label}</span>
-                {l.sub && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{l.sub}</span>}
-              </a>
-            ))}
-          </div>
-        )}
-
         {/* Alt kısım: kullanıcı */}
         {usern && (
           <div style={{

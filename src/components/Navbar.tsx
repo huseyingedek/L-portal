@@ -6,45 +6,13 @@ interface NavbarProps {
   extraLinks?: React.ReactNode;
   showEditLink?: React.ReactNode;
   backButton?: boolean;
-  showIasLinks?: boolean;
 }
 
-const IAS_LINKS = (
-  <div className="flex items-center gap-0 text-xs" style={{ color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
-    <a
-      href="http://176.236.6.140:8099/caniasout.jnlp"
-      target="_blank" rel="noreferrer"
-      className="transition-colors hover:text-white"
-      style={{ color: 'rgba(255,255,255,0.55)' }}
-    >
-      IAS Dış İp: 176.236.6.140:8099
-    </a>
-    <span className="mx-2" style={{ color: 'rgba(255,255,255,0.25)' }}>|</span>
-    <a
-      href="http://192.168.1.50:8099/canias.jnlp"
-      target="_blank" rel="noreferrer"
-      className="transition-colors hover:text-white"
-      style={{ color: 'rgba(255,255,255,0.55)' }}
-    >
-      IAS İç İp: 192.168.1.50:8099
-    </a>
-    <span className="mx-2" style={{ color: 'rgba(255,255,255,0.25)' }}>|</span>
-    <a
-      href="https://media.ias.com.tr/java8/windows/jre-8u191-windows-x64.exe"
-      target="_blank" rel="noreferrer"
-      className="transition-colors hover:text-white"
-      style={{ color: 'rgba(255,255,255,0.55)' }}
-    >
-      JAVA
-    </a>
-  </div>
-);
 
 export default function Navbar({
   extraLinks,
   showEditLink,
   backButton = false,
-  showIasLinks = false,
 }: NavbarProps) {
 
   const logo = (
@@ -73,7 +41,6 @@ export default function Navbar({
       {/* Sol */}
       <div className="flex items-center gap-4">
         {logo}
-        {showIasLinks && <div className="hidden md:block">{IAS_LINKS}</div>}
       </div>
 
       {/* Sağ */}

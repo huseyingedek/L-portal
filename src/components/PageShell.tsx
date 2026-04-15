@@ -104,30 +104,6 @@ export default function PageShell({ children, usern }: Props) {
             <i className="fa-solid fa-bars" />
           </button>
 
-          {/* IAS Linkleri — mobilde gizli */}
-          {!isMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, overflow: 'hidden' }}>
-              {[
-                { label: 'IAS Dış İp', href: 'http://176.236.6.140:8099/caniasout.jnlp', sub: '176.236.6.140:8099', icon: 'fa-solid fa-server' },
-                { label: 'IAS İç İp',  href: 'http://192.168.1.50:8099/canias.jnlp',     sub: '192.168.1.50:8099',  icon: 'fa-solid fa-network-wired' },
-                { label: 'JAVA',       href: 'https://media.ias.com.tr/java8/windows/jre-8u191-windows-x64.exe', sub: null, icon: 'fa-brands fa-java' },
-              ].map((l, i) => (
-                <span key={l.href} style={{ display: 'flex', alignItems: 'center' }}>
-                  {i > 0 && <span style={{ margin: '0 8px', color: 'rgba(214,48,80,0.25)', fontSize: 12 }}>|</span>}
-                  <a href={l.href} target="_blank" rel="noreferrer"
-                    style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 6, transition: 'all 0.15s', whiteSpace: 'nowrap' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(214,48,80,0.1)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <i className={l.icon} style={{ fontSize: 10, color: 'rgba(214,48,80,0.6)' }} />
-                    <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: '0.02em' }}>{l.label}</span>
-                    {l.sub && <span style={{ color: 'rgba(255,255,255,0.22)' }}>{l.sub}</span>}
-                  </a>
-                </span>
-              ))}
-            </div>
-          )}
-
           <div style={{ flex: 1 }} />
 
           {/* Sağ: kullanıcı + çıkış */}
