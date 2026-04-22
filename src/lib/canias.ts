@@ -8,8 +8,8 @@ const LOGIN_ARGS = {
   p_strDBName:    'NEW',
   p_strDBServer:  'CANIAS',
   p_strAppServer: '192.168.1.50:27499/S2',
-  p_strUserName:  'WSLIZAY',
-  p_strPassword:  'Ws-123lizay',
+  p_strUserName:  'WSONLIZ',
+  p_strPassword:  'Nvf7bM955zge2xgp',
 };
 
 const WSDL_TIMEOUT_MS    = 15_000;  // WSDL indirme maks 15sn
