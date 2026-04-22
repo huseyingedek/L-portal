@@ -124,3 +124,64 @@ export async function callCaniasService(
   return { response: raw, status: 'OK' };
 }
 
+/**
+ * Fiyatgör gibi tek seferlik sorgular için:
+ * Her çağrıda fresh login → servis çağır → logout yapar.
+ * Paylaşımlı session'u kirletmez, lisans slotunu hemen serbest bırakır.
+ */
+export async function callCaniasServiceWithLogout(
+  functionName: string,
+  params: string[]
+): Promise<{ response: string; status: 'OK' | 'FL' }> {
+  const client = await getSoapClient();
+  const args   = params.join(',');
+
+  // Her seferinde fresh login
+  let sessionId: string;
+  try {
+    const loginResult = await withTimeout(
+      client.loginAsync(LOGIN_ARGS),
+      REQUEST_TIMEOUT_MS,
+      'Login (fiyatgor)'
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r0: any = (loginResult as any)?.[0];
+    sessionId = r0?.loginReturn ?? r0 ?? '';
+    if (!sessionId) return { response: 'Login başarısız', status: 'FL' };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { response: `Bağlantı hatası: ${msg}`, status: 'FL' };
+  }
+
+  // Servis çağrısı
+  let raw = '';
+  try {
+    const result = await callService(client, sessionId, functionName, args);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res0: any = (result as any)?.[0];
+    raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Hata olsa bile logout yapmayı dene
+    try { await withTimeout(client.logoutAsync({ sessionid: sessionId }), 5_000, 'Logout'); } catch { /* yoksay */ }
+    return { response: `Servis hatası: ${msg}`, status: 'FL' };
+  }
+
+  // Logout — hata olsa bile devam et
+  try {
+    await withTimeout(
+      client.logoutAsync({ sessionid: sessionId }),
+      5_000,
+      'Logout (fiyatgor)'
+    );
+    console.log('[CANIAS] Logout başarılı, session:', sessionId);
+  } catch (err) {
+    console.error('[CANIAS] Logout HATASI:', err instanceof Error ? err.message : String(err));
+  }
+
+  if (raw.startsWith('FL')) {
+    return { response: raw.substring(3), status: 'FL' };
+  }
+  return { response: raw, status: 'OK' };
+}
+

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { sessionOptions, SessionData } from '@/lib/session';
-import { callCaniasService } from '@/lib/canias';
+import { callCaniasServiceWithLogout } from '@/lib/canias';
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
@@ -17,10 +17,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Barkod boş olamaz' }, { status: 400 });
   }
 
-  let result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
+  let result = await callCaniasServiceWithLogout('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
 
   if (result.status === 'FL' && magaza_stok === '1') {
-    result = await callCaniasService('RetailBatchCheckV2', ['P2000C', barkod_kodu, '0']);
+    result = await callCaniasServiceWithLogout('RetailBatchCheckV2', ['P2000C', barkod_kodu, '0']);
   }
 
   if (result.status === 'FL') {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       ana_data['ROW']['SPRICECURRENCY']= value['SPRICECURRENCY'] || '';
       ana_data['ROW']['COLORCLARITY']  = d1row.substring(7, 14);
 
-      const picture = (value['PICTURE'] || '')
+      const picture = String(value['PICTURE'] || '')
         .replace('-----BEGIN CERTIFICATE-----', '')
         .replace('-----END CERTIFICATE-----', '');
       ana_data['ROW']['IMGBASE64'] = 'data:image/png;base64,' + picture;
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       ana_data[key]['SPRICECURRENCY']= value['SPRICECURRENCY'] || '';
       ana_data[key]['COLORCLARITY']  = String(value['D1TEXT'] || '').substring(7, 14);
 
-      const picture = (value['PICTURE'] || '')
+      const picture = String(value['PICTURE'] || '')
         .replace('-----BEGIN CERTIFICATE-----', '')
         .replace('-----END CERTIFICATE-----', '');
       ana_data[key]['IMGBASE64'] = 'data:image/png;base64,' + picture;
