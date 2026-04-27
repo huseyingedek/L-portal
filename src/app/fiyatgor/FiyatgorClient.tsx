@@ -524,14 +524,15 @@ function BarcodeScannerModal({ onDetected, onClose }: ScannerModalProps) {
    MAIN PAGE
 ═══════════════════════════════════════════════════════ */
 export default function FiyatgorClient() {
-  const [barkod, setBarkod]         = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [notFound, setNotFound]     = useState(false);
-  const [cart, setCart]             = useState<CartItem[]>([]);
-  const [magazaStok, setMagazaStok] = useState(false);
+  const [barkod, setBarkod]           = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [notFound, setNotFound]       = useState(false);
+  const [licenseError, setLicenseError] = useState(false);
+  const [cart, setCart]               = useState<CartItem[]>([]);
+  const [magazaStok, setMagazaStok]   = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const inputRef                    = useRef<HTMLInputElement>(null);
-  const magazaStokRef               = useRef(magazaStok);
+  const inputRef                      = useRef<HTMLInputElement>(null);
+  const magazaStokRef                 = useRef(magazaStok);
 
   useEffect(() => { magazaStokRef.current = magazaStok; }, [magazaStok]);
   useEffect(() => { if (!loading) inputRef.current?.focus(); }, [loading]);
@@ -541,17 +542,42 @@ export default function FiyatgorClient() {
     if (!trimmed) return;
     setLoading(true);
     setNotFound(false);
+    setLicenseError(false);
 
-    const res  = await fetch('/api/fiyatgor', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barkod_kodu: trimmed, magaza_stok: magazaStokRef.current ? '1' : '0' }),
-    });
-    const data = await res.json();
+    const MAX_ATTEMPTS = 3;
+    let data: Record<string, unknown> | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const res = await fetch('/api/fiyatgor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ barkod_kodu: trimmed, magaza_stok: magazaStokRef.current ? '1' : '0' }),
+        });
+        const json = await res.json();
+        if (json && !json.error) {
+          data = json;
+          break;
+        }
+        // Hata döndü; son deneme değilse kısa bekle ve tekrar dene
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise(r => setTimeout(r, 1200));
+        }
+      } catch {
+        // Ağ/timeout hatası; son deneme değilse kısa bekle ve tekrar dene
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise(r => setTimeout(r, 1200));
+        }
+      }
+    }
+
     setLoading(false);
     setBarkod('');
 
-    if (!data || data.error) { setNotFound(true); return; }
+    if (!data) {
+      setLicenseError(true);
+      return;
+    }
 
     let options: UrunRow[] = [];
     if (data.ROW) {
@@ -656,7 +682,7 @@ export default function FiyatgorClient() {
               type="text"
               inputMode="text"
               value={barkod}
-              onChange={e => { setBarkod(e.target.value); setNotFound(false); }}
+              onChange={e => { setBarkod(e.target.value); setNotFound(false); setLicenseError(false); }}
               onKeyDown={e => e.key === 'Enter' && handleManualSearch()}
               placeholder="Barkod okutun veya girin..."
               autoFocus
@@ -706,6 +732,21 @@ export default function FiyatgorClient() {
           }}>
             <i className="fa-solid fa-triangle-exclamation" />
             Bu barkoda ait ürün bulunamadı.
+          </div>
+        )}
+
+        {/* Lisans hatası */}
+        {licenseError && (
+          <div style={{
+            marginTop: 10,
+            backgroundColor: 'rgba(255,237,213,0.97)', color: '#7c2d12',
+            padding: '10px 18px', borderRadius: 10,
+            fontWeight: 600, fontSize: 14,
+            display: 'flex', alignItems: 'center', gap: 8,
+            maxWidth: 520, width: '100%',
+          }}>
+            <i className="fa-solid fa-clock-rotate-left" />
+            Lisans sayısı aşıldı, tekrar deneyebilir misiniz?
           </div>
         )}
 
