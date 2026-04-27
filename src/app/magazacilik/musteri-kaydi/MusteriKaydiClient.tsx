@@ -74,7 +74,8 @@ export default function MusteriKaydiClient() {
     e.preventDefault();
     setVerLoading(true);
     setVerMessage('');
-    let data: Record<string, unknown> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any = {};
     try {
       const res = await fetch('/api/musteri/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
