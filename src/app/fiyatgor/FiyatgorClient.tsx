@@ -533,6 +533,7 @@ export default function FiyatgorClient() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const inputRef                      = useRef<HTMLInputElement>(null);
   const magazaStokRef                 = useRef(magazaStok);
+  const isSearchingRef                = useRef(false);
 
   useEffect(() => { magazaStokRef.current = magazaStok; }, [magazaStok]);
   useEffect(() => { if (!loading) inputRef.current?.focus(); }, [loading]);
@@ -540,6 +541,8 @@ export default function FiyatgorClient() {
   async function searchWithCode(kod: string) {
     const trimmed = kod.trim().toUpperCase();
     if (!trimmed) return;
+    if (isSearchingRef.current) return;
+    isSearchingRef.current = true;
     setLoading(true);
     setNotFound(false);
     setLicenseError(false);
@@ -571,6 +574,7 @@ export default function FiyatgorClient() {
       }
     }
 
+    isSearchingRef.current = false;
     setLoading(false);
     setBarkod('');
 
