@@ -96,7 +96,7 @@ export default function MusteriKaydiClient() {
         KVKK_ETK:   'KVKK ve ETK Kabul Edildi!',
         Reddedildi: 'KVKK ve ETK Reddedildi!',
       };
-      const msg = labelMap[data.result] ?? 'Müşteri kaydı tamamlandı.';
+      const msg = labelMap[data.result as string] ?? 'Müşteri kaydı tamamlandı.';
 
       setVerifyMode(false);
       setVerCode('');
