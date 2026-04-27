@@ -43,21 +43,26 @@ export default function IzinFormuClient() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch('/api/izin-formu', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'Lizay-izin-formu.pdf'; a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      alert('PDF oluşturulamadı.');
+    try {
+      const res = await fetch('/api/izin-formu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'Lizay-izin-formu.pdf'; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        alert('PDF oluşturulamadı.');
+      }
+    } catch {
+      alert('Bağlantı hatası, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

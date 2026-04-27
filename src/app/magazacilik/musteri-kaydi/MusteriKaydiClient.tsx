@@ -52,30 +52,42 @@ export default function MusteriKaydiClient() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-    const res = await fetch('/api/musteri', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setLoading(false);
-
-    if (data.needsVerification) {
-      setVerifyMode(true);
-      return;
+    try {
+      const res = await fetch('/api/musteri', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.needsVerification) {
+        setVerifyMode(true);
+        return;
+      }
+      setMessage(data.success ? 'Müşteri kaydı başarıyla tamamlandı.' : data.error || 'Hata oluştu.');
+    } catch {
+      setMessage('Bağlantı hatası, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
     }
-    setMessage(data.success ? 'Müşteri kaydı başarıyla tamamlandı.' : data.error || 'Hata oluştu.');
   }
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     setVerLoading(true);
     setVerMessage('');
-    const res = await fetch('/api/musteri/verify', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userInput: verCode }),
-    });
-    const data = await res.json();
-    setVerLoading(false);
+    let data: Record<string, unknown> = {};
+    try {
+      const res = await fetch('/api/musteri/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: verCode }),
+      });
+      data = await res.json();
+    } catch {
+      setVerMessage('Bağlantı hatası, lütfen tekrar deneyin.');
+      setVerLoading(false);
+      return;
+    } finally {
+      setVerLoading(false);
+    }
 
     if (data.success) {
       const labelMap: Record<string, string> = {

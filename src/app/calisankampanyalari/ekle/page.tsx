@@ -38,15 +38,20 @@ export default function KampanyaEklePage() {
     const icerik = editor ? editor.getData() : '';
     if (!icerik.trim()) { setMsg('İçerik boş olamaz.'); return; }
     setLoading(true);
-    const res = await fetch('/api/kampanyalar/ekle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kampanya_gorsel_baslik: gorselBaslik, kampanya_baslik: baslik, kampanya_icerik: icerik }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (data.success) { setMsg('Başarıyla yüklendi!'); setTimeout(() => router.push('/calisankampanyalari'), 1500); }
-    else { setMsg(data.error || 'Başarısız.'); }
+    try {
+      const res = await fetch('/api/kampanyalar/ekle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kampanya_gorsel_baslik: gorselBaslik, kampanya_baslik: baslik, kampanya_icerik: icerik }),
+      });
+      const data = await res.json();
+      if (data.success) { setMsg('Başarıyla yüklendi!'); setTimeout(() => router.push('/calisankampanyalari'), 1500); }
+      else { setMsg(data.error || 'Başarısız.'); }
+    } catch {
+      setMsg('Bağlantı hatası, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

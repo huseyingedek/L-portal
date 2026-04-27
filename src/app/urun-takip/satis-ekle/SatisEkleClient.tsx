@@ -31,26 +31,31 @@ export default function SatisEkleClient({ firmaAd }: { firmaAd: string }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch('/api/urun-takip/satis', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        barkod_no: barkodNo,
-        urun_fiyat: fiyatToNumber(),
-        para_birimi: paraBirimi,
-        satis_tarih: satisTarih,
-        musteri_ad: musteriAd,
-        musteri_soyad: musteriSoyad,
-      }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (data.success) {
-      alert('Başarıyla eklendi!');
-      setSatisTarih(''); setBarkodNo(''); setFiyatDisplay(''); setParaBirimi('TRY');
-      setMusteriAd(''); setMusteriSoyad('');
-    } else {
-      alert(data.error || 'Hata oluştu.');
+    try {
+      const res = await fetch('/api/urun-takip/satis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barkod_no: barkodNo,
+          urun_fiyat: fiyatToNumber(),
+          para_birimi: paraBirimi,
+          satis_tarih: satisTarih,
+          musteri_ad: musteriAd,
+          musteri_soyad: musteriSoyad,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Başarıyla eklendi!');
+        setSatisTarih(''); setBarkodNo(''); setFiyatDisplay(''); setParaBirimi('TRY');
+        setMusteriAd(''); setMusteriSoyad('');
+      } else {
+        alert(data.error || 'Hata oluştu.');
+      }
+    } catch {
+      alert('Bağlantı hatası, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
     }
   }
 

@@ -13,17 +13,22 @@ export default function SikayetPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const res = await fetch('/api/sikayet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isim, mesaj }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (data.success) {
-      setSent(true);
-    } else {
-      setError(data.error || 'Bir Sorun Oluştu');
+    try {
+      const res = await fetch('/api/sikayet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isim, mesaj }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSent(true);
+      } else {
+        setError(data.error || 'Bir Sorun Oluştu');
+      }
+    } catch {
+      setError('Bağlantı hatası, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
     }
   }
 

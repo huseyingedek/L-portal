@@ -66,18 +66,23 @@ export default function MasrafGirisiClient() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => {
-      if (k === 'InvoiceDate' && v) {
-        const [y, m, d] = v.split('-');
-        fd.append(k, `${y}/${parseInt(m)}/${parseInt(d)}`);
-      } else { fd.append(k, v); }
-    });
-    if (imageFile) fd.append('InvoiceImage', imageFile);
-    const res  = await fetch('/api/expenses/commit', { method: 'POST', body: fd });
-    const data = await res.json();
-    setLoading(false);
-    setMessage(data.success ? 'Kayıt işlemi tamamlanmıştır.' : data.error || 'Hata oluştu.');
+    try {
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => {
+        if (k === 'InvoiceDate' && v) {
+          const [y, m, d] = v.split('-');
+          fd.append(k, `${y}/${parseInt(m)}/${parseInt(d)}`);
+        } else { fd.append(k, v); }
+      });
+      if (imageFile) fd.append('InvoiceImage', imageFile);
+      const res  = await fetch('/api/expenses/commit', { method: 'POST', body: fd });
+      const data = await res.json();
+      setMessage(data.success ? 'Kayıt işlemi tamamlanmıştır.' : data.error || 'Hata oluştu.');
+    } catch {
+      setMessage('Bağlantı hatası oluştu, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -32,17 +32,22 @@ export default function IkEklePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => fd.append(k, v));
-    if (resim) fd.append('kisi_resim', resim);
-    const res = await fetch('/api/ik/ekle', { method: 'POST', body: fd });
-    const data = await res.json();
-    setLoading(false);
-    if (data.success) {
-      setMsg('Başarıyla kaydedildi!');
-      setTimeout(() => router.push('/ik'), 1500);
-    } else {
-      setMsg(data.error || 'Hata oluştu.');
+    try {
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      if (resim) fd.append('kisi_resim', resim);
+      const res = await fetch('/api/ik/ekle', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        setMsg('Başarıyla kaydedildi!');
+        setTimeout(() => router.push('/ik'), 1500);
+      } else {
+        setMsg(data.error || 'Hata oluştu.');
+      }
+    } catch {
+      setMsg('Bağlantı hatası, lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
     }
   }
 
