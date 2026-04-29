@@ -1,4 +1,6 @@
 import { createClientAsync, Client } from 'soap';
+import fs from 'fs';
+import path from 'path';
 
 const WSDL_URL = process.env.CANIAS_WSDL_URL || 'http://192.168.1.50:8080/CaniasWS-v1/services/iasWebService?wsdl';
 
@@ -14,9 +16,10 @@ const LOGIN_ARGS = {
 
 const WSDL_TIMEOUT_MS    = 15_000;
 const REQUEST_TIMEOUT_MS = 30_000;
+const SESSION_FILE       = path.join(process.cwd(), 'canias-session.txt');
 
-let _client:        Client | null          = null;
-let _clientPromise: Promise<Client> | null = null;
+/** Aktif oturum ID'si — tüm istekler bunu paylaşır */
+let _sessionId: string = '';
 
 /** Verilen promise için zaman aşımı ekler */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -27,6 +30,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     ),
   ]);
 }
+
+let _client:        Client | null          = null;
+let _clientPromise: Promise<Client> | null = null;
 
 async function getSoapClient(): Promise<Client> {
   if (_client) return _client;
@@ -54,21 +60,56 @@ function parseRawValue(rawValue: unknown): string {
   return String(rawValue ?? '');
 }
 
-async function callService(client: Client, sessionId: string, functionName: string, args: string) {
-  return withTimeout(
-    client.callIASServiceAsync({
-      sessionid:  sessionId,
-      serviceid:  functionName,
-      args,
-      returntype: 'string',
-      permanent:  false,
-    }),
-    REQUEST_TIMEOUT_MS,
-    functionName
-  );
+/** Session ID'yi dosyaya kaydeder */
+function saveSession(sid: string) {
+  try { fs.writeFileSync(SESSION_FILE, sid, 'utf8'); } catch { /* sessiz geç */ }
 }
 
-async function freshLogin(client: Client, label: string): Promise<string> {
+/** Session ID'yi dosyadan okur */
+function loadSession(): string {
+  try {
+    if (fs.existsSync(SESSION_FILE)) return fs.readFileSync(SESSION_FILE, 'utf8').trim();
+  } catch { /* sessiz geç */ }
+  return '';
+}
+
+/** CANIAS oturumunun hâlâ aktif olup olmadığını kontrol eder */
+async function isSessionAlive(client: Client, sid: string): Promise<boolean> {
+  if (!sid) return false;
+  try {
+    const result = await withTimeout(
+      client.callIASServiceAsync({
+        sessionid:  sid,
+        serviceid:  'checkSessionId',
+        args:       '',
+        returntype: 'string',
+        permanent:  false,
+      }),
+      10_000,
+      'checkSessionId'
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res0: any = (result as any)?.[0];
+    const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+    const alive = raw !== '' && !raw.startsWith('FL');
+    console.log(`[CANIAS] checkSessionId → "${raw}" → ${alive ? 'CANLI' : 'ÖLMÜŞ'}`);
+    return alive;
+  } catch {
+    return false;
+  }
+}
+
+/** Aktif ve geçerli bir session ID döner; gerekirse yeniden login atar */
+async function getSession(client: Client, label: string): Promise<string> {
+  // Önce bellekteki oturumu dene
+  if (!_sessionId) _sessionId = loadSession();
+
+  if (await isSessionAlive(client, _sessionId)) {
+    return _sessionId;
+  }
+
+  // Oturum ölmüş — yeniden login
+  console.log(`[CANIAS] Oturum yok/geçersiz, yeniden login atılıyor... (${label})`);
   const loginResult = await withTimeout(
     client.loginAsync(LOGIN_ARGS),
     REQUEST_TIMEOUT_MS,
@@ -77,25 +118,18 @@ async function freshLogin(client: Client, label: string): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r0: any = (loginResult as any)?.[0];
   const sid = parseRawValue(r0?.loginReturn ?? r0 ?? '');
+
+  if (!sid) throw new Error('Login başarısız, session ID boş döndü');
+
+  _sessionId = sid;
+  saveSession(sid);
+  console.log(`[CANIAS] Yeni oturum alındı: ${sid}`);
   return sid;
 }
 
-async function doLogout(client: Client, sessionId: string, label: string): Promise<void> {
-  try {
-    await withTimeout(
-      client.logoutAsync({ sessionid: sessionId }),
-      5_000,
-      `Logout (${label})`
-    );
-    console.log(`[CANIAS] Logout OK [${label}] session: ${sessionId}`);
-  } catch (err) {
-    console.error(`[CANIAS] Logout HATA [${label}]:`, err instanceof Error ? err.message : String(err));
-  }
-}
-
 /**
- * Her çağrıda: login → servis → logout
- * Tüm CANIAS işlemleri bu fonksiyonla yapılır.
+ * Paylaşılan oturumla servis çağrısı yapar.
+ * Login sadece oturum yoksa veya ölmüşse yapılır — logout asla yapılmaz.
  */
 export async function callCaniasService(
   functionName: string,
@@ -106,8 +140,7 @@ export async function callCaniasService(
 
   let sessionId: string;
   try {
-    sessionId = await freshLogin(client, functionName);
-    if (!sessionId) return { response: 'Login başarısız', status: 'FL' };
+    sessionId = await getSession(client, functionName);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { response: `Bağlantı hatası: ${msg}`, status: 'FL' };
@@ -115,17 +148,27 @@ export async function callCaniasService(
 
   let raw = '';
   try {
-    const result = await callService(client, sessionId, functionName, args);
+    const result = await withTimeout(
+      client.callIASServiceAsync({
+        sessionid:  sessionId,
+        serviceid:  functionName,
+        args,
+        returntype: 'string',
+        permanent:  false,
+      }),
+      REQUEST_TIMEOUT_MS,
+      functionName
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res0: any = (result as any)?.[0];
     raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
   } catch (err) {
+    // Oturum ölmüş olabilir — sıfırla, bir sonraki istekte yeniden login atar
+    _sessionId = '';
+    saveSession('');
     const msg = err instanceof Error ? err.message : String(err);
-    await doLogout(client, sessionId, functionName);
     return { response: `Servis hatası: ${msg}`, status: 'FL' };
   }
-
-  await doLogout(client, sessionId, functionName);
 
   if (raw.startsWith('FL')) {
     return { response: raw.substring(3), status: 'FL' };

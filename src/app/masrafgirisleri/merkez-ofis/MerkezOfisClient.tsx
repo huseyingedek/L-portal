@@ -3,6 +3,33 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+/** Resmi sıkıştırır — max 1200px, %85 kalite, görsel kalitesi korunur */
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const MAX_PX = 1200;
+    const QUALITY = 0.85;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_PX || height > MAX_PX) {
+        if (width > height) { height = Math.round(height * MAX_PX / width); width = MAX_PX; }
+        else                { width  = Math.round(width  * MAX_PX / height); height = MAX_PX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        if (blob) resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        else      resolve(file);
+      }, 'image/jpeg', QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 function parseRows(raw: unknown): unknown[] {
   try {
     const str = typeof raw === 'string' ? raw : JSON.stringify(raw);
@@ -84,8 +111,14 @@ export default function MerkezOfisClient() {
           fd.append(k, `${y}/${parseInt(m)}/${parseInt(d)}`);
         } else { fd.append(k, v); }
       });
-      if (imageFile) fd.append('InvoiceImage', imageFile);
-      const res  = await fetch('/api/expenses/commit', { method: 'POST', body: fd });
+      if (imageFile) {
+        const compressed = await compressImage(imageFile);
+        fd.append('InvoiceImage', compressed);
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 90_000);
+      const res  = await fetch('/api/expenses/commit', { method: 'POST', body: fd, signal: controller.signal });
+      clearTimeout(timer);
       const data = await res.json();
       setMessage(data.success ? 'Kayıt işlemi tamamlanmıştır.' : data.error || 'Hata oluştu.');
     } catch {
