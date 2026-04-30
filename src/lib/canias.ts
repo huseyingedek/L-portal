@@ -54,6 +54,9 @@ async function getSoapClient(): Promise<Client> {
 function parseRawValue(rawValue: unknown): string {
   if (typeof rawValue === 'object' && rawValue !== null) {
     if ('$value' in rawValue) return String((rawValue as Record<string, unknown>).$value);
+    // {"attributes":{...}} = SOAP kütüphanesinin boş element için ürettiği nesne → boş string
+    const keys = Object.keys(rawValue as object);
+    if (keys.length === 1 && keys[0] === 'attributes') return '';
     return JSON.stringify(rawValue);
   }
   return String(rawValue ?? '');
@@ -102,6 +105,7 @@ async function doLogin(client: Client, label: string): Promise<string> {
       REQUEST_TIMEOUT_MS,
       `Login (${label})`
     );
+    console.log(`[CANIAS] loginAsync RAW:`, JSON.stringify(loginResult));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r0: any = (loginResult as any)?.[0];
     const sid = parseRawValue(r0?.loginReturn ?? r0 ?? '');
