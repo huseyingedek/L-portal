@@ -594,8 +594,14 @@ export default function FiyatgorClient() {
       options = Array.isArray(r) ? r : [r];
     } else {
       const keys = Object.keys(data).filter(k => !isNaN(Number(k))).sort((a, b) => +a - +b);
-      if (keys.length === 0) { setNotFound(true); return; }
-      options = keys.map(k => data[k] as UrunRow);
+      if (keys.length > 0) {
+        options = keys.map(k => data[k] as UrunRow);
+      } else {
+        // "attributes" veya başka string key — ilk değeri al
+        const allKeys = Object.keys(data);
+        if (allKeys.length === 0) { setNotFound(true); return; }
+        options = [data[allKeys[0]] as UrunRow];
+      }
     }
 
     const uid = trimmed + '_' + Date.now();
