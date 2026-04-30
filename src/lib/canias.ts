@@ -21,7 +21,9 @@ const SESSION_FILE       = path.join(process.cwd(), 'canias-session.txt');
 /** Aktif oturum ID'si — tüm istekler bunu paylaşır */
 let _sessionId: string = '';
 
-/** Verilen promise için zaman aşımı ekler */
+/** Login mutex — aynı anda sadece 1 login işlemi yapılır */
+let _loginPromise: Promise<string> | null = null;
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     promise,
@@ -60,12 +62,10 @@ function parseRawValue(rawValue: unknown): string {
   return String(rawValue ?? '');
 }
 
-/** Session ID'yi dosyaya kaydeder */
 function saveSession(sid: string) {
   try { fs.writeFileSync(SESSION_FILE, sid, 'utf8'); } catch { /* sessiz geç */ }
 }
 
-/** Session ID'yi dosyadan okur */
 function loadSession(): string {
   try {
     if (fs.existsSync(SESSION_FILE)) return fs.readFileSync(SESSION_FILE, 'utf8').trim();
@@ -99,37 +99,53 @@ async function isSessionAlive(client: Client, sid: string): Promise<boolean> {
   }
 }
 
+/**
+ * Login mutex ile korunan login fonksiyonu.
+ * Aynı anda birden fazla login isteği gelirse hepsi aynı promise'i bekler.
+ */
+async function doLogin(client: Client, label: string): Promise<string> {
+  if (_loginPromise) {
+    console.log(`[CANIAS] Login zaten sürüyor, bekleniyor... (${label})`);
+    return _loginPromise;
+  }
+
+  _loginPromise = (async () => {
+    console.log(`[CANIAS] Yeni login atılıyor... (${label})`);
+    const loginResult = await withTimeout(
+      client.loginAsync(LOGIN_ARGS),
+      REQUEST_TIMEOUT_MS,
+      `Login (${label})`
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r0: any = (loginResult as any)?.[0];
+    const sid = parseRawValue(r0?.loginReturn ?? r0 ?? '');
+    if (!sid) throw new Error('Login başarısız, session ID boş döndü');
+    _sessionId = sid;
+    saveSession(sid);
+    console.log(`[CANIAS] Yeni oturum alındı: ${sid}`);
+    return sid;
+  })().finally(() => {
+    _loginPromise = null;
+  });
+
+  return _loginPromise;
+}
+
 /** Aktif ve geçerli bir session ID döner; gerekirse yeniden login atar */
 async function getSession(client: Client, label: string): Promise<string> {
-  // Önce bellekteki oturumu dene
   if (!_sessionId) _sessionId = loadSession();
 
   if (await isSessionAlive(client, _sessionId)) {
     return _sessionId;
   }
 
-  // Oturum ölmüş — yeniden login
-  console.log(`[CANIAS] Oturum yok/geçersiz, yeniden login atılıyor... (${label})`);
-  const loginResult = await withTimeout(
-    client.loginAsync(LOGIN_ARGS),
-    REQUEST_TIMEOUT_MS,
-    `Login (${label})`
-  );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const r0: any = (loginResult as any)?.[0];
-  const sid = parseRawValue(r0?.loginReturn ?? r0 ?? '');
-
-  if (!sid) throw new Error('Login başarısız, session ID boş döndü');
-
-  _sessionId = sid;
-  saveSession(sid);
-  console.log(`[CANIAS] Yeni oturum alındı: ${sid}`);
-  return sid;
+  return doLogin(client, label);
 }
 
 /**
  * Paylaşılan oturumla servis çağrısı yapar.
  * Login sadece oturum yoksa veya ölmüşse yapılır — logout asla yapılmaz.
+ * Session çağrı sırasında ölürse bir kez daha login atıp tekrar dener.
  */
 export async function callCaniasService(
   functionName: string,
@@ -146,34 +162,48 @@ export async function callCaniasService(
     return { response: `Bağlantı hatası: ${msg}`, status: 'FL' };
   }
 
-  let raw = '';
-  try {
-    const result = await withTimeout(
-      client.callIASServiceAsync({
-        sessionid:  sessionId,
-        serviceid:  functionName,
-        args,
-        returntype: 'string',
-        permanent:  false,
-      }),
-      REQUEST_TIMEOUT_MS,
-      functionName
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res0: any = (result as any)?.[0];
-    raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
-  } catch (err) {
-    // Oturum ölmüş olabilir — sıfırla, bir sonraki istekte yeniden login atar
-    _sessionId = '';
-    saveSession('');
-    const msg = err instanceof Error ? err.message : String(err);
-    return { response: `Servis hatası: ${msg}`, status: 'FL' };
+  // Servis çağrısı — session çağrı sırasında ölürse 1 kez daha dene
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const result = await withTimeout(
+        client.callIASServiceAsync({
+          sessionid:  sessionId,
+          serviceid:  functionName,
+          args,
+          returntype: 'string',
+          permanent:  false,
+        }),
+        REQUEST_TIMEOUT_MS,
+        functionName
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res0: any = (result as any)?.[0];
+      const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+
+      if (raw.startsWith('FL')) {
+        return { response: raw.substring(3), status: 'FL' };
+      }
+      return { response: raw, status: 'OK' };
+
+    } catch (err) {
+      if (attempt === 2) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { response: `Servis hatası: ${msg}`, status: 'FL' };
+      }
+      // İlk denemede hata → session ölmüş olabilir, yeniden login at
+      console.log(`[CANIAS] Servis hatası, session yenileniyor... (${functionName})`);
+      _sessionId = '';
+      saveSession('');
+      try {
+        sessionId = await doLogin(client, functionName);
+      } catch (loginErr) {
+        const msg = loginErr instanceof Error ? loginErr.message : String(loginErr);
+        return { response: `Bağlantı hatası: ${msg}`, status: 'FL' };
+      }
+    }
   }
 
-  if (raw.startsWith('FL')) {
-    return { response: raw.substring(3), status: 'FL' };
-  }
-  return { response: raw, status: 'OK' };
+  return { response: 'Bilinmeyen hata', status: 'FL' };
 }
 
 // Geriye dönük uyumluluk için alias

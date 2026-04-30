@@ -549,6 +549,7 @@ export default function FiyatgorClient() {
 
     const MAX_ATTEMPTS = 3;
     let data: Record<string, unknown> | null = null;
+    let notFoundFlag = false;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
@@ -557,17 +558,19 @@ export default function FiyatgorClient() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ barkod_kodu: trimmed, magaza_stok: magazaStokRef.current ? '1' : '0' }),
         });
+        // 404 = ürün gerçekten yok, retry yapma
+        if (res.status === 404) { notFoundFlag = true; break; }
         const json = await res.json();
-        if (json && !json.error) {
+        if (res.ok && json && !json.error) {
           data = json;
           break;
         }
-        // Hata döndü; son deneme değilse kısa bekle ve tekrar dene
+        // 5xx veya başka hata — son deneme değilse bekle ve tekrar dene
         if (attempt < MAX_ATTEMPTS) {
           await new Promise(r => setTimeout(r, 1200));
         }
       } catch {
-        // Ağ/timeout hatası; son deneme değilse kısa bekle ve tekrar dene
+        // Ağ/timeout hatası — son deneme değilse bekle ve tekrar dene
         if (attempt < MAX_ATTEMPTS) {
           await new Promise(r => setTimeout(r, 1200));
         }
@@ -577,6 +580,8 @@ export default function FiyatgorClient() {
     isSearchingRef.current = false;
     setLoading(false);
     setBarkod('');
+
+    if (notFoundFlag) { setNotFound(true); return; }
 
     if (!data) {
       setLicenseError(true);
