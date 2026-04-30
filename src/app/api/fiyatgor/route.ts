@@ -18,8 +18,6 @@ export async function POST(req: NextRequest) {
   }
 
   let result = await callCaniasServiceWithLogout('RetailBatchCheckV2', ['P2000C', barkod_kodu, magaza_stok]);
-  console.log(`[FIYATGOR] RAW CANIAS response: "${result.response?.substring(0, 500)}"`);
-  console.log(`[FIYATGOR] status: ${result.status}`);
 
   if (result.status === 'FL' && magaza_stok === '1') {
     result = await callCaniasServiceWithLogout('RetailBatchCheckV2', ['P2000C', barkod_kodu, '0']);

@@ -15,7 +15,7 @@ const LOGIN_ARGS = {
 const WSDL_TIMEOUT_MS    = 15_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 
-/** Aktif oturum ID'si — memory'de tutulur, txt yok */
+/** Aktif oturum ID'si — memory'de tutulur */
 let _sessionId: string = '';
 
 /** Login mutex — aynı anda sadece 1 login işlemi yapılır */
@@ -80,7 +80,7 @@ async function isSessionAlive(client: Client, sid: string): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res0: any = (result as any)?.[0];
     const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
-    const alive = raw !== '';  // herhangi bir yanıt = CANLI, boş/hata = ÖLMÜŞ
+    const alive = raw !== '';
     console.log(`[CANIAS] checkSessionId → "${raw}" → ${alive ? 'CANLI' : 'ÖLMÜŞ'}`);
     return alive;
   } catch {
@@ -105,7 +105,6 @@ async function doLogin(client: Client, label: string): Promise<string> {
       REQUEST_TIMEOUT_MS,
       `Login (${label})`
     );
-    console.log(`[CANIAS] loginAsync RAW:`, JSON.stringify(loginResult));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r0: any = (loginResult as any)?.[0];
     const sid = parseRawValue(r0?.loginReturn ?? r0 ?? '');
@@ -130,8 +129,8 @@ async function getSession(client: Client, label: string): Promise<string> {
 
 /**
  * Paylaşılan oturumla servis çağrısı yapar.
- * Login sadece oturum yoksa veya ölmüşse yapılır — logout asla yapılmaz.
- * Session çağrı sırasında ölürse bir kez daha login atıp tekrar dener.
+ * Login sadece oturum yoksa veya ölmüşse yapılır.
+ * Session çağrı sırasında ölürse eski session logout edilir, yeni login atılır, tekrar denenir.
  */
 export async function callCaniasService(
   functionName: string,
@@ -176,8 +175,14 @@ export async function callCaniasService(
         const msg = err instanceof Error ? err.message : String(err);
         return { response: `Servis hatası: ${msg}`, status: 'FL' };
       }
-      // İlk denemede hata → session ölmüş olabilir, yeniden login at
+      // İlk denemede hata → eski session'ı kapat, yeniden login at
       console.log(`[CANIAS] Servis hatası, session yenileniyor... (${functionName})`);
+      if (_sessionId) {
+        try {
+          await withTimeout(client.logoutAsync({ sessionid: _sessionId }), 5_000, 'logout');
+          console.log(`[CANIAS] Eski oturum kapatıldı: ${_sessionId}`);
+        } catch { /* sessiz geç */ }
+      }
       _sessionId = '';
       try {
         sessionId = await doLogin(client, functionName);
@@ -208,6 +213,7 @@ async function gracefulLogout() {
     );
     console.log('[CANIAS] Graceful shutdown: oturum kapatıldı');
   } catch { /* sessiz geç */ }
+  _sessionId = '';
 }
 
 process.once('SIGTERM', async () => { await gracefulLogout(); process.exit(0); });

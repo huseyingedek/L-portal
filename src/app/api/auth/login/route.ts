@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
     // ─────────────────────────────────────────────────────────────
 
     const result = await callCaniasService('userCheck', [username, password]);
-    console.log(`[LOGIN] userCheck → status: ${result.status} | response: "${result.response}"`);
 
     if (result.status === 'FL') {
       // Bağlantı hatası mı yoksa yanlış şifre mi ayırt et
