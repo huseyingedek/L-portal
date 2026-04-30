@@ -208,3 +208,24 @@ export async function callCaniasService(
 
 // Geriye dönük uyumluluk için alias
 export const callCaniasServiceWithLogout = callCaniasService;
+
+/**
+ * PM2/process shutdown sinyalinde mevcut CANIAS oturumunu temiz kapatır.
+ * Böylece sunucu yeniden başladığında CANIAS'ta zombie session kalmaz.
+ */
+async function gracefulLogout() {
+  if (!_sessionId || !_client) return;
+  try {
+    await withTimeout(
+      _client.logoutAsync({ sessionid: _sessionId }),
+      5_000,
+      'Graceful logout'
+    );
+    console.log('[CANIAS] Graceful shutdown: oturum kapatıldı');
+  } catch {
+    /* sessiz geç — zaten kapanıyor */
+  }
+}
+
+process.once('SIGTERM', async () => { await gracefulLogout(); process.exit(0); });
+process.once('SIGINT',  async () => { await gracefulLogout(); process.exit(0); });
