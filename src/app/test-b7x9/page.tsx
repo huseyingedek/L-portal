@@ -32,11 +32,8 @@ export default function BarkodTestPage() {
     setSonuclar(barkodlar.map(b => ({ barkod: b, durum: 'bekliyor' })));
     const genelBaslangic = Date.now();
 
-    for (let i = 0; i < barkodlar.length; i++) {
-      const barkod = barkodlar[i];
-      setIlerleme(`${i + 1} / ${barkodlar.length}`);
+    await Promise.all(barkodlar.map(async (barkod) => {
       const baslangic = Date.now();
-
       try {
         const res = await fetch('/api/fiyatgor', {
           method: 'POST',
@@ -50,7 +47,7 @@ export default function BarkodTestPage() {
           setSonuclar(prev => prev.map(s =>
             s.barkod === barkod ? { ...s, durum: 'hata', sure: Number(sure), hata: `HTTP ${res.status}` } : s
           ));
-          continue;
+          return;
         }
 
         const data = await res.json();
@@ -58,7 +55,7 @@ export default function BarkodTestPage() {
           setSonuclar(prev => prev.map(s =>
             s.barkod === barkod ? { ...s, durum: 'hata', sure: Number(sure), hata: data.error } : s
           ));
-          continue;
+          return;
         }
 
         const keys = Object.keys(data);
@@ -81,7 +78,7 @@ export default function BarkodTestPage() {
           s.barkod === barkod ? { ...s, durum: 'hata', sure: Number(sure), hata: 'Bağlantı hatası' } : s
         ));
       }
-    }
+    }));
 
     setToplamSure(Number(((Date.now() - genelBaslangic) / 1000).toFixed(2)));
     setCalisıyor(false);
@@ -121,7 +118,7 @@ export default function BarkodTestPage() {
             border: 'none', borderRadius: 4,
           }}
         >
-          {calisıyor ? `Çalışıyor... (${ilerleme})` : 'Tümünü Test Et'}
+          {calisıyor ? 'Çalışıyor...' : 'Tümünü Test Et'}
         </button>
 
         {sonuclar.length > 0 && !calisıyor && (
