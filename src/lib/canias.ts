@@ -148,6 +148,11 @@ async function startupCleanup(): Promise<void> {
     const mySid = _sid0;
     if (!mySid) return;
 
+    // checkProcess CONNECTIONID'yi "WSONLIZ_XXXX" döndürür (base64 kısmı olmadan).
+    // Login ise "WSONLIZ_XXXX|base64..." döndürür.
+    // Karşılaştırmayı doğru yapmak için base64 kısmını at.
+    const mySidBase = mySid.split('|')[0];
+
     // checkProcess ile tüm WSONLIZ oturumlarını listele
     const result = await withTimeout(
       client.callIASServiceAsync({
@@ -173,7 +178,12 @@ async function startupCleanup(): Promise<void> {
     const sessions: SessionRow[] = Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
 
     // Yeni oturum hariç hepsini kapat
-    const zombiler = sessions.filter(s => s.CONNECTIONID && s.CONNECTIONID !== mySid);
+    // mySidBase: base64 kısmı olmadan karşılaştır (checkProcess kısa format döndürür)
+    const zombiler = sessions.filter(s =>
+      s.CONNECTIONID &&
+      s.CONNECTIONID !== mySid &&
+      s.CONNECTIONID !== mySidBase
+    );
 
     if (zombiler.length === 0) {
       console.log('[CANIAS] Baslangic: zombie yok, temiz.');
