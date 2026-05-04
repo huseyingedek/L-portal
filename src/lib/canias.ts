@@ -29,6 +29,9 @@ let _login2Promise: Promise<string> | null = null;
 let _timer1: ReturnType<typeof setTimeout> | null = null;
 let _timer2: ReturnType<typeof setTimeout> | null = null;
 
+// ── Mutex: acquireSlot race condition koruması ────────────────────────────────
+let _acquiring = false;
+
 // ── Txt dosyası yardımcıları ──────────────────────────────────────────────────
 
 function readSessionFile(): string {
@@ -128,11 +131,9 @@ async function startupCleanup(): Promise<void> {
   try {
     const client = await getSoapClient();
 
-
     await primaryLogin(client, 'startup');
     const mySid = _sid0;
     if (!mySid) return;
-
 
     const mySidBase = mySid.split('|')[0];
 
@@ -161,7 +162,6 @@ async function startupCleanup(): Promise<void> {
     const sessions: SessionRow[] = Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
 
     // Yeni oturum hariç hepsini kapat
-    // mySidBase: base64 kısmı olmadan karşılaştır (checkProcess kısa format döndürür)
     const zombiler = sessions.filter(s =>
       s.CONNECTIONID &&
       s.CONNECTIONID !== mySid &&
@@ -190,7 +190,7 @@ async function startupCleanup(): Promise<void> {
 
 startupCleanup();
 
-
+// ── Idle timer ────────────────────────────────────────────────────────────────
 
 function startIdleTimer(slot: 1 | 2, client: Client): void {
   if (slot === 1) {
@@ -210,9 +210,9 @@ function startIdleTimer(slot: 1 | 2, client: Client): void {
     if (_timer2) clearTimeout(_timer2);
     _timer2 = setTimeout(async () => {
       _timer2 = null;
-      if (!_sid2 || _busy2) return; // meşgulse dokunma
+      if (!_sid2 || _busy2) return;
       const sid = _sid2;
-      _sid2 = '';  
+      _sid2 = '';
       console.log(`[CANIAS] Yardimci 2 bosta kaldi (30sn), oturum kapatiliyor: ${sid}`);
       try {
         await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'idle-logout-2');
@@ -227,65 +227,73 @@ function cancelIdleTimer(slot: 1 | 2): void {
   if (slot === 2 && _timer2) { clearTimeout(_timer2); _timer2 = null; }
 }
 
-// ── Slot edinme ───────────────────────────────────────────────────────────────
+// ── Slot edinme (mutex korumalı) ──────────────────────────────────────────────
 
 type SlotNum = 0 | 1 | 2;
 
 async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
+  // Race condition koruması: aynı anda sadece bir acquireSlot çalışır
+  while (_acquiring) await new Promise(r => setTimeout(r, 10));
+  _acquiring = true;
 
-  // ── Slot 0 (primary) ──────────────────────────────────────────────
-  if (!_busy0) {
-    if (_sid0) { _busy0 = true; return 0; }
-    if (!_login0Promise) {
+  try {
+    // ── Slot 0 (primary) ──────────────────────────────────────────────
+    if (!_busy0) {
+      if (_sid0) { _busy0 = true; return 0; }
+      if (!_login0Promise) {
+        _busy0 = true;
+        try { await primaryLogin(client, label); return 0; }
+        catch (err) { _busy0 = false; throw err; }
+      }
       _busy0 = true;
-      try { await primaryLogin(client, label); return 0; }
+      try { await _login0Promise; return 0; }
       catch (err) { _busy0 = false; throw err; }
     }
-    _busy0 = true;
-    try { await _login0Promise; return 0; }
-    catch (err) { _busy0 = false; throw err; }
-  }
 
-  // ── Slot 1 (yardımcı 1) – primary meşgulse ────────────────────────
-  if (!_busy1) {
-    cancelIdleTimer(1);
-    if (_sid1) { _busy1 = true; return 1; }
-    if (!_login1Promise) {
-      _busy1 = true;
-      try {
-        await helperLogin1(client, `${label}-yard1`);
-        console.log('[CANIAS] Yardimci 1 oturum devreye girdi.');
-        return 1;
-      } catch {
-        console.log('[CANIAS] Yardimci 1 acilamadi, slot 2 deneniyor...');
-        _busy1 = false;
+    // ── Slot 1 (yardımcı 1) – primary meşgulse ────────────────────────
+    if (!_busy1) {
+      cancelIdleTimer(1);
+      if (_sid1) { _busy1 = true; return 1; }
+      if (!_login1Promise) {
+        _busy1 = true;
+        try {
+          await helperLogin1(client, `${label}-yard1`);
+          console.log('[CANIAS] Yardimci 1 oturum devreye girdi.');
+          return 1;
+        } catch {
+          console.log('[CANIAS] Yardimci 1 acilamadi, slot 2 deneniyor...');
+          _busy1 = false;
+        }
+      } else {
+        _busy1 = true;
+        try { await _login1Promise; return 1; }
+        catch { _busy1 = false; }
       }
-    } else {
-      _busy1 = true;
-      try { await _login1Promise; return 1; }
-      catch { _busy1 = false; }
     }
-  }
 
-  // ── Slot 2 (yardımcı 2) – slot 0 ve slot 1 meşgulse ──────────────
-  if (!_busy2) {
-    cancelIdleTimer(2);
-    if (_sid2) { _busy2 = true; return 2; }
-    if (!_login2Promise) {
-      _busy2 = true;
-      try {
-        await helperLogin2(client, `${label}-yard2`);
-        console.log('[CANIAS] Yardimci 2 oturum devreye girdi.');
-        return 2;
-      } catch {
-        console.log('[CANIAS] Yardimci 2 acilamadi, tum slotlar dolu, bekleniyor...');
-        _busy2 = false;
+    // ── Slot 2 (yardımcı 2) – slot 0 ve slot 1 meşgulse ──────────────
+    if (!_busy2) {
+      cancelIdleTimer(2);
+      if (_sid2) { _busy2 = true; return 2; }
+      if (!_login2Promise) {
+        _busy2 = true;
+        try {
+          await helperLogin2(client, `${label}-yard2`);
+          console.log('[CANIAS] Yardimci 2 oturum devreye girdi.');
+          return 2;
+        } catch {
+          console.log('[CANIAS] Yardimci 2 acilamadi, tum slotlar dolu, bekleniyor...');
+          _busy2 = false;
+        }
+      } else {
+        _busy2 = true;
+        try { await _login2Promise; return 2; }
+        catch { _busy2 = false; }
       }
-    } else {
-      _busy2 = true;
-      try { await _login2Promise; return 2; }
-      catch { _busy2 = false; }
     }
+  } finally {
+    // Mutex her zaman serbest bırakılır
+    _acquiring = false;
   }
 
   // ── Hepsi meşgul → spin-wait (4. oturum ASLA açılmaz) ─────────────
@@ -298,10 +306,10 @@ function releaseSlot(slot: SlotNum, client: Client): void {
     _busy0 = false;
   } else if (slot === 1) {
     _busy1 = false;
-    if (_sid1) startIdleTimer(1, client); // 30sn timer başlat
+    if (_sid1) startIdleTimer(1, client);
   } else {
     _busy2 = false;
-    if (_sid2) startIdleTimer(2, client); // 30sn timer başlat
+    if (_sid2) startIdleTimer(2, client);
   }
 }
 
@@ -434,8 +442,6 @@ export async function callCaniasService(
         const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
 
         if (raw.startsWith('FL')) {
-          // Primary ilk denemede FL: oturum manuel kapatılmış olabilir → retry tetikle
-          // İkinci+ denemede FL: gerçek iş hatası → döndür
           if (slot === 0 && dongu === 0) {
             console.log(`[CANIAS] FL alindi (slot=0, dongu=0, fn=${functionName}): oturum olmuş olabilir, yeniden deneniyor...`);
             throw new Error(`FL_SESSION: ${raw}`);
@@ -452,21 +458,17 @@ export async function callCaniasService(
           (servisHata instanceof Error ? servisHata.message : String(servisHata))
         );
 
-        // ── FIX: Yardımcı (slot 1 veya 2) başarısız → primary'e devret ──────
-        // BUG DÜZELTME: Eskiden sessionId = _sid0 atanıp if (!sessionId) ile
-        // kontrol ediliyordu. _sid0 dolu ama ölü token olduğunda login
-        // atlanıyor, ölü tokenla devam ediliyordu. Şimdi her zaman _sid0
-        // sıfırlanıp taze login yapılıyor.
+        // ── FIX: Yardımcı başarısız → primary'e devret ───────────────
+        // _sid0 dolu ama ölü olabilir → her zaman temizle ve taze login yap
         if (slot === 1 || slot === 2) {
           console.log(`[CANIAS] Yardimci slot ${slot} basarisiz, primary bekleniyor...`);
           if (slot === 1) _sid1 = '';
           else            _sid2 = '';
-          releaseSlot(slot, client); // _busy=false, timer yok (_sid boş)
+          releaseSlot(slot, client);
           slot = 0;
           while (_busy0) await new Promise(r => setTimeout(r, 30));
           _busy0 = true;
 
-          // _sid0'ı temizle — ölü token olabilir, her zaman taze login yap
           _sid0 = '';
           clearSessionFile();
           try {
@@ -479,7 +481,7 @@ export async function callCaniasService(
           continue;
         }
 
-        // Primary hata → retry (Bora Abi algoritması)
+        // Primary hata → retry
         try {
           const eskiSid = _sid0;
           _sid0 = '';
