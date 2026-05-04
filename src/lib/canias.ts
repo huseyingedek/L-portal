@@ -434,10 +434,10 @@ export async function callCaniasService(
         const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
 
         if (raw.startsWith('FL')) {
-          // Primary ilk denemede FL: oturum manuel kapatılmış olabilir → retry tetikle
+          // İlk denemede FL: oturum ölmüş olabilir → retry tetikle (tüm slotlar için)
           // İkinci+ denemede FL: gerçek iş hatası → döndür
-          if (slot === 0 && dongu === 0) {
-            console.log(`[CANIAS] FL alindi (slot=0, dongu=0, fn=${functionName}): oturum olmuş olabilir, yeniden deneniyor...`);
+          if (dongu === 0) {
+            console.log(`[CANIAS] FL alindi (slot=${slot}, dongu=0, fn=${functionName}): oturum olmust olabilir, yeniden deneniyor...`);
             throw new Error(`FL_SESSION: ${raw}`);
           }
           return { response: raw.substring(3), status: 'FL' };
@@ -452,11 +452,7 @@ export async function callCaniasService(
           (servisHata instanceof Error ? servisHata.message : String(servisHata))
         );
 
-        // ── FIX: Yardımcı (slot 1 veya 2) başarısız → primary'e devret ──────
-        // BUG DÜZELTME: Eskiden sessionId = _sid0 atanıp if (!sessionId) ile
-        // kontrol ediliyordu. _sid0 dolu ama ölü token olduğunda login
-        // atlanıyor, ölü tokenla devam ediliyordu. Şimdi her zaman _sid0
-        // sıfırlanıp taze login yapılıyor.
+        // Yardımcı (slot 1 veya 2) başarısız → primary'e devret
         if (slot === 1 || slot === 2) {
           console.log(`[CANIAS] Yardimci slot ${slot} basarisiz, primary bekleniyor...`);
           if (slot === 1) _sid1 = '';
@@ -464,17 +460,11 @@ export async function callCaniasService(
           releaseSlot(slot, client); // _busy=false, timer yok (_sid boş)
           slot = 0;
           while (_busy0) await new Promise(r => setTimeout(r, 30));
-          _busy0 = true;
-
-          // _sid0'ı temizle — ölü token olabilir, her zaman taze login yap
-          _sid0 = '';
-          clearSessionFile();
-          try {
-            sessionId = await primaryLogin(client, `${functionName}-fallback`);
-            console.log(`[CANIAS] Primary fallback login basarili.`);
-          } catch (e) {
-            _busy0 = false;
-            return { response: `Baglanti hatasi: ${e instanceof Error ? e.message : e}`, status: 'FL' };
+          _busy0    = true;
+          sessionId = _sid0;
+          if (!sessionId) {
+            try { sessionId = await primaryLogin(client, `${functionName}-fallback`); }
+            catch (e) { return { response: `Baglanti hatasi: ${e instanceof Error ? e.message : e}`, status: 'FL' }; }
           }
           continue;
         }
