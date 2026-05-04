@@ -43,7 +43,7 @@ function clearSessionFile(): void {
   catch { /* sessiz gec */ }
 }
 
-// ── Yardimci fonksiyonlar ─────────────────────────────────────────────────────
+// ── Timeout utility ───────────────────────────────────────────────────────────
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -53,6 +53,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     ),
   ]);
 }
+
+// ── SOAP client ───────────────────────────────────────────────────────────────
 
 let _client:        Client | null          = null;
 let _clientPromise: Promise<Client> | null = null;
@@ -83,53 +85,6 @@ function parseRawValue(rawValue: unknown): string {
     return JSON.stringify(rawValue);
   }
   return String(rawValue ?? '');
-}
-
-// ── Session kontrolu ──────────────────────────────────────────────────────────
-
-/**
- * checkSessionId sonucu:
- *   true  = CANLI  → herhangi bir deger dondu, session gecerli
- *   false = OLMUS  → bos string dondu, token kesin oldu, re-login gerekli
- *   null  = YOGUN  → timeout/hata, CANIAS mesgul ama session muhtemelen saglikli,
- *                    yeni login ACMA, mevcut session koru ve servis cagrisini dene
- */
-async function checkSession(client: Client, sid: string): Promise<boolean | null> {
-  if (!sid) return false;
-  try {
-    const result = await withTimeout(
-      client.callIASServiceAsync({
-        sessionid:  sid,
-        serviceid:  'checkSessionId',
-        args:       '',
-        returntype: 'STRING',
-        permanent:  false,
-      }),
-      10_000,
-      'checkSessionId'
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res0: any = (result as any)?.[0];
-    const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
-    const alive = raw !== '';
-    console.log(`[CANIAS] checkSessionId -> "${raw}" -> ${alive ? 'CANLI' : 'OLMUS'}`);
-    return alive;
-  } catch {
-    // Timeout veya network hatasi — CANIAS mesgul, session muhtemelen saglikli
-    // Yeni login ACMA, mevcut session koru
-    console.log('[CANIAS] checkSessionId -> timeout/hata -> session korunuyor, servis denenecek');
-    return null;
-  }
-}
-
-async function getSession(client: Client, label: string): Promise<string> {
-  const status = await checkSession(client, _sessionId);
-  if (status === true)  return _sessionId;              // CANLI -> kullan
-  if (status === null && _sessionId) return _sessionId; // YOGUN -> koru, dene
-  // false veya hic session yok -> re-login
-  clearSessionFile();
-  _sessionId = '';
-  return doLogin(client, label);
 }
 
 // ── Startup temizligi ─────────────────────────────────────────────────────────
@@ -188,15 +143,16 @@ async function doLogin(client: Client, label: string): Promise<string> {
   return _loginPromise;
 }
 
-// ── checkProcess: zombie session temizligi ────────────────────────────────────
+// ── checkProcess yardimcilari ─────────────────────────────────────────────────
+
+type SessionRow = Record<string, string>;
 
 /**
- * Is bittikten sonra arka planda cagrilir.
- * WSONLIZ adina acik olan tum session'lari ceker,
- * PROCESSTIME = 0 (bosta) olanlari logout eder.
- * Aktif session (su an kullanilanlar) korunur.
+ * WSONLIZ adina acik tum sessionlari ceker.
+ * Basarisiz olursa null döner (ana isi etkilemez).
  */
-async function cleanupZombieSessions(client: Client): Promise<void> {
+async function fetchSessions(client: Client): Promise<SessionRow[] | null> {
+  if (!_sessionId) return null;
   try {
     const result = await withTimeout(
       client.callIASServiceAsync({
@@ -212,49 +168,127 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res0: any = (result as any)?.[0];
     const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
-    if (!raw || raw.startsWith('FL')) return;
+    if (!raw || raw.startsWith('FL')) return null;
 
-    let sessions: Record<string, string>[];
-    try {
-      const parsed = JSON.parse(raw);
-      // JSON array veya {ROW: {...}, "0": {...}, ...} seklinde gelebilir
-      if (Array.isArray(parsed)) {
-        sessions = parsed;
-      } else {
-        sessions = Object.values(parsed);
-      }
-    } catch { return; }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed
+      : (Object.values(parsed) as SessionRow[]);
+  } catch {
+    return null;
+  }
+}
 
-    const aktifler = sessions.filter(s => Number(s.PROCESSTIME ?? 0) > 0).map(s => s.CONNECTIONID);
-    const bostalar = sessions.filter(s =>
+async function safeLogout(client: Client, sid: string): Promise<void> {
+  try {
+    await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'zombie-logout');
+    console.log(`[CANIAS] Session kapatildi: ${sid}`);
+  } catch { /* sessiz gec */ }
+}
+
+// ── Post-is temizligi ─────────────────────────────────────────────────────────
+
+/**
+ * Is bittikten sonra arka planda cagrilir (ana istegi bekletmez).
+ *
+ * Adimlar:
+ *  1. checkProcess -> PROCESSTIME=0 olanlari kapat (kendi session HARIC)
+ *  2. Hala PROCESSTIME>0 olan baskasi varsa, onlari bitip bosalana kadar bekle
+ *  3. Bosalanlari kapat
+ *  4. Son kalan aktif session'i txt'e yaz (genellikle _sessionId)
+ */
+async function cleanupZombieSessions(client: Client): Promise<void> {
+  try {
+    // 1. Ilk snapshot
+    const sessions = await fetchSessions(client);
+    if (!sessions) return;
+
+    // 2. Hemen kapatilabiilecekler: PROCESSTIME=0, kendi session degil
+    const hemenKapat = sessions.filter(s =>
       Number(s.PROCESSTIME ?? 0) === 0 &&
       s.CONNECTIONID &&
-      s.CONNECTIONID !== _sessionId &&   // Kendi oturumumuzu ASLA kapatma
-      !aktifler.includes(s.CONNECTIONID)
+      s.CONNECTIONID !== _sessionId
+    );
+    for (const s of hemenKapat) {
+      await safeLogout(client, s.CONNECTIONID);
+    }
+
+    // 3. Bizim disimizda hala PROCESSTIME>0 olan sessionlar var mi?
+    let digerAktifler = sessions.filter(s =>
+      Number(s.PROCESSTIME ?? 0) > 0 &&
+      s.CONNECTIONID &&
+      s.CONNECTIONID !== _sessionId
     );
 
-    if (bostalar.length === 0) {
-      console.log('[CANIAS] checkProcess: kapatilacak bos session yok.');
-      return;
+    // MAX 2 OTURUM KURALI: bizimki + en fazla 1 diger = 2 toplam
+    // Fazla aktif sessionlar varsa hemen kapat (beklemeden)
+    if (digerAktifler.length > 1) {
+      const fazlalilar = digerAktifler.slice(1); // ilkini bırak, gerisini kapat
+      console.log(`[CANIAS] Max 2 oturum kurali: ${fazlalilar.length} fazla aktif session kapatiliyor...`);
+      for (const s of fazlalilar) {
+        await safeLogout(client, s.CONNECTIONID);
+      }
+      digerAktifler = digerAktifler.slice(0, 1);
     }
 
-    console.log(`[CANIAS] checkProcess: ${bostalar.length} bos session kapatiliyor...`);
-    for (const s of bostalar) {
-      try {
-        await withTimeout(client.logoutAsync({ sessionid: s.CONNECTIONID }), 5_000, 'zombie-logout');
-        console.log(`[CANIAS] Zombie session kapatildi: ${s.CONNECTIONID}`);
-      } catch { /* sessiz gec */ }
+    if (digerAktifler.length > 0) {
+      console.log(`[CANIAS] ${digerAktifler.length} baska aktif session bekleniyor...`);
+
+      const MAX_BEKLEME_MS   = 120_000; // maksimum 2 dakika bekle
+      const POLL_INTERVAL_MS =   3_000;
+      const baslangic = Date.now();
+
+      while (digerAktifler.length > 0 && Date.now() - baslangic < MAX_BEKLEME_MS) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+        const guncel = await fetchSessions(client);
+        if (!guncel) break;
+
+        // Biten (artik PROCESSTIME=0 veya listede yok) olanlari kapat
+        const bitenler = digerAktifler.filter(prev => {
+          const simdiki = guncel.find(u => u.CONNECTIONID === prev.CONNECTIONID);
+          return !simdiki || Number(simdiki.PROCESSTIME ?? 0) === 0;
+        });
+        for (const s of bitenler) {
+          await safeLogout(client, s.CONNECTIONID);
+        }
+
+        // Hala aktif olanlari guncelle (kendi session haric)
+        digerAktifler = guncel.filter(s =>
+          Number(s.PROCESSTIME ?? 0) > 0 &&
+          s.CONNECTIONID !== _sessionId
+        );
+      }
+
+      if (digerAktifler.length > 0) {
+        console.log(`[CANIAS] ${digerAktifler.length} session zaman asimina ugradi, temizlik sonlandi.`);
+      }
     }
 
-    // Temizlik sonrasi txt'i guncelle: mevcut aktif session'imizi kaydet
-    if (_sessionId) writeSessionFile(_sessionId);
+    // 4. Txt'e aktif oturumu kaydet
+    if (_sessionId) {
+      writeSessionFile(_sessionId);
+      console.log(`[CANIAS] Temizlik tamam. Aktif session txt'e yazildi: ${_sessionId}`);
+    }
+
   } catch {
-    // checkProcess basarisiz olursa sessizce gec, ana is etkilenmesin
+    // Hata olursa sessizce gec, ana isi etkilemez
   }
 }
 
 // ── Ana servis cagrisi ────────────────────────────────────────────────────────
 
+/**
+ * Bora Abi algoritmasi:
+ *
+ *  1. "1. token" = sunucu basladiginda elimizdeki ilk gecerli session
+ *  2. O token ile cevap alirsak is bitti
+ *  3. Cevap alamazsak yeniden login ac
+ *     - Login basarili -> yeni token ile tekrar dene
+ *     - Login basarisiz -> 1. token'a geri don, biraz bekle, tekrar dene
+ *  4. Ta ki ya cevap alana ya da login olana kadar dongu
+ *  5. Is bitince arka planda cleanupZombieSessions calis
+ */
 export async function callCaniasService(
   functionName: string,
   params: string[]
@@ -262,15 +296,23 @@ export async function callCaniasService(
   const client = await getSoapClient();
   const args   = params.join(',');
 
-  let sessionId: string;
-  try {
-    sessionId = await getSession(client, functionName);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { response: `Baglanti hatasi: ${msg}`, status: 'FL' };
+  // Baslangic session'ini belirle: memory'de varsa kullan, yoksa login al
+  let sessionId = _sessionId;
+  if (!sessionId) {
+    try {
+      sessionId = await doLogin(client, functionName);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { response: `Baglanti hatasi: ${msg}`, status: 'FL' };
+    }
   }
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  // "1. token" - login basarisiz olunca her zaman buna donulur
+  const ilkToken = sessionId;
+
+  const MAX_DONGU = 10; // sonsuz dongu koruyucu
+
+  for (let dongu = 0; dongu < MAX_DONGU; dongu++) {
     try {
       const result = await withTimeout(
         client.callIASServiceAsync({
@@ -287,46 +329,53 @@ export async function callCaniasService(
       const res0: any = (result as any)?.[0];
       const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
 
+      // CANIAS uygulama seviyesi hata (FL...) - retry yapma, direkt don
       if (raw.startsWith('FL')) {
         return { response: raw.substring(3), status: 'FL' };
       }
-      // Is bitti, arka planda zombie temizligi yap (ana istegi bekletme)
-      cleanupZombieSessions(client).catch(() => {});
+
+      // Basarili
+      console.log(`[CANIAS] OK: ${functionName} (dongu=${dongu}, session=${sessionId})`);
+      cleanupZombieSessions(client).catch(() => {}); // arka planda temizlik
       return { response: raw, status: 'OK' };
 
-    } catch (err) {
-      if (attempt === 2) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return { response: `Servis hatasi: ${msg}`, status: 'FL' };
-      }
-      // Servis hatasi -> session gercekten oldu mu kontrol et
-      console.log(`[CANIAS] Servis hatasi, session kontrol ediliyor... (${functionName})`);
-      const sessionStatus = await checkSession(client, _sessionId);
-      if (sessionStatus !== false) {
-        // null (CANIAS yogun) veya true (canli) -> yeni session ACMA, tekrar dene
-        console.log(`[CANIAS] Session saglikli/yogun, tekrar deneniyor... (${functionName})`);
-        continue;
-      }
-      // false: session kesin olmus -> logout + txt temizle + yeni login
-      console.log(`[CANIAS] Session olmus, yenileniyor... (${functionName})`);
-      if (_sessionId) {
-        try {
-          await withTimeout(client.logoutAsync({ sessionid: _sessionId }), 5_000, 'logout');
-          console.log(`[CANIAS] Eski oturum kapatildi: ${_sessionId}`);
-        } catch { /* sessiz gec */ }
-        clearSessionFile();
-      }
-      _sessionId = '';
+    } catch (servisHata) {
+      console.log(
+        `[CANIAS] Servis hatasi (dongu=${dongu}, fn=${functionName}): ` +
+        (servisHata instanceof Error ? servisHata.message : String(servisHata))
+      );
+
+      // Yeniden login dene (mutex sayesinde paralel istekler tek login yapar)
+      // MAX 2 OTURUM: yeni login acmadan once mevcut session'i kapat
       try {
-        sessionId = await doLogin(client, functionName);
-      } catch (loginErr) {
-        const msg = loginErr instanceof Error ? loginErr.message : String(loginErr);
-        return { response: `Baglanti hatasi: ${msg}`, status: 'FL' };
+        const eskiSid = _sessionId;
+        _sessionId = '';
+        clearSessionFile();
+        if (eskiSid && eskiSid !== ilkToken) {
+          // ilkToken'u kapatma - ona geri donebilmek gerekebilir
+          try { await withTimeout(client.logoutAsync({ sessionid: eskiSid }), 3_000, 'pre-login-logout'); } catch { /* sessiz gec */ }
+        }
+        sessionId = await doLogin(client, `${functionName}-retry${dongu}`);
+        console.log(`[CANIAS] Yeniden login basarili (dongu=${dongu}), tekrar deneniyor...`);
+        // Yeni session ile hemen bir sonraki donguye gec
+      } catch (loginHata) {
+        // Login de basarisiz -> 1. token'a don, bekle, tekrar dene
+        console.log(
+          `[CANIAS] Login basarisiz (dongu=${dongu}): ` +
+          (loginHata instanceof Error ? loginHata.message : String(loginHata)) +
+          ' -> 1. token ile tekrar deneniyor...'
+        );
+        sessionId  = ilkToken;
+        _sessionId = ilkToken;
+        if (ilkToken) writeSessionFile(ilkToken);
+
+        // Kademeli bekleme: 1s, 2s, 3s ...
+        await new Promise(r => setTimeout(r, 1_000 * (dongu + 1)));
       }
     }
   }
 
-  return { response: 'Bilinmeyen hata', status: 'FL' };
+  return { response: 'Maksimum deneme sayisina ulasildi', status: 'FL' };
 }
 
 export const callCaniasServiceWithLogout = callCaniasService;
