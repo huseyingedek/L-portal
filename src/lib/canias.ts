@@ -282,14 +282,12 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
     );
     if (digerAktifler.length > 1) {
       const fazlalilar = digerAktifler.slice(1);
-      console.log(`[CANIAS] Max 2 oturum: ${fazlalilar.length} fazla kapatiliyor...`);
       for (const s of fazlalilar) await safeLogout(client, s.CONNECTIONID);
       digerAktifler = digerAktifler.slice(0, 1);
     }
 
     // 3. Kalan diger aktif oturum(lar) bitene kadar bekle
     if (digerAktifler.length > 0) {
-      console.log(`[CANIAS] ${digerAktifler.length} baska aktif oturum bekleniyor...`);
       const MAX_BEKLEME_MS   = 120_000;
       const POLL_INTERVAL_MS =   3_000;
       const baslangic = Date.now();
@@ -324,10 +322,7 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
     }
 
     // 5. txt'i güncelle
-    if (_sid1) {
-      writeSessionFile(_sid1);
-      console.log(`[CANIAS] Temizlik tamam. Aktif session: ${_sid1}`);
-    }
+    if (_sid1) writeSessionFile(_sid1);
   } catch {
     // Ana isi etkilemez
   }
@@ -389,7 +384,6 @@ export async function callCaniasService(
 
         if (raw.startsWith('FL')) return { response: raw.substring(3), status: 'FL' };
 
-        console.log(`[CANIAS] OK: ${functionName} (slot=${slot}, dongu=${dongu})`);
         cleanupZombieSessions(client).catch(() => {});
         return { response: raw, status: 'OK' };
 
