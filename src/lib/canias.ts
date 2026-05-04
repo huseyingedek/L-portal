@@ -188,6 +188,71 @@ async function doLogin(client: Client, label: string): Promise<string> {
   return _loginPromise;
 }
 
+// ── checkProcess: zombie session temizligi ────────────────────────────────────
+
+/**
+ * Is bittikten sonra arka planda cagrilir.
+ * WSONLIZ adina acik olan tum session'lari ceker,
+ * PROCESSTIME = 0 (bosta) olanlari logout eder.
+ * Aktif session (su an kullanilanlar) korunur.
+ */
+async function cleanupZombieSessions(client: Client): Promise<void> {
+  try {
+    const result = await withTimeout(
+      client.callIASServiceAsync({
+        sessionid:  _sessionId,
+        serviceid:  'checkProcess',
+        args:       'WSONLIZ',
+        returntype: 'STRING',
+        permanent:  false,
+      }),
+      10_000,
+      'checkProcess'
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res0: any = (result as any)?.[0];
+    const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+    if (!raw || raw.startsWith('FL')) return;
+
+    let sessions: Record<string, string>[];
+    try {
+      const parsed = JSON.parse(raw);
+      // JSON array veya {ROW: {...}, "0": {...}, ...} seklinde gelebilir
+      if (Array.isArray(parsed)) {
+        sessions = parsed;
+      } else {
+        sessions = Object.values(parsed);
+      }
+    } catch { return; }
+
+    const aktifler = sessions.filter(s => Number(s.PROCESSTIME ?? 0) > 0).map(s => s.CONNECTIONID);
+    const bostalar = sessions.filter(s =>
+      Number(s.PROCESSTIME ?? 0) === 0 &&
+      s.CONNECTIONID &&
+      s.CONNECTIONID !== _sessionId &&   // Kendi oturumumuzu ASLA kapatma
+      !aktifler.includes(s.CONNECTIONID)
+    );
+
+    if (bostalar.length === 0) {
+      console.log('[CANIAS] checkProcess: kapatilacak bos session yok.');
+      return;
+    }
+
+    console.log(`[CANIAS] checkProcess: ${bostalar.length} bos session kapatiliyor...`);
+    for (const s of bostalar) {
+      try {
+        await withTimeout(client.logoutAsync({ sessionid: s.CONNECTIONID }), 5_000, 'zombie-logout');
+        console.log(`[CANIAS] Zombie session kapatildi: ${s.CONNECTIONID}`);
+      } catch { /* sessiz gec */ }
+    }
+
+    // Temizlik sonrasi txt'i guncelle: mevcut aktif session'imizi kaydet
+    if (_sessionId) writeSessionFile(_sessionId);
+  } catch {
+    // checkProcess basarisiz olursa sessizce gec, ana is etkilenmesin
+  }
+}
+
 // ── Ana servis cagrisi ────────────────────────────────────────────────────────
 
 export async function callCaniasService(
@@ -225,6 +290,8 @@ export async function callCaniasService(
       if (raw.startsWith('FL')) {
         return { response: raw.substring(3), status: 'FL' };
       }
+      // Is bitti, arka planda zombie temizligi yap (ana istegi bekletme)
+      cleanupZombieSessions(client).catch(() => {});
       return { response: raw, status: 'OK' };
 
     } catch (err) {
