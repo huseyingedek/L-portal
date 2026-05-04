@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   if (type === 'ulke') {
     try {
       const result = await callCaniasService('getCountryCode', ['P2000C']);
+      if (result.status === 'FL' || !result.response) return NextResponse.json([]);
       const parsed = JSON.parse(result.response);
       const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW ?? parsed?.ROW;
       return NextResponse.json(Array.isArray(rows) ? rows : rows ? [rows] : []);
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
     try {
       const ulke = searchParams.get('ulke') || 'TR';
       const result = await callCaniasService('getCityCode', [session.usern, ulke]);
+      if (result.status === 'FL' || !result.response) return NextResponse.json([]);
       const parsed = JSON.parse(result.response);
       const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW ?? parsed?.ROW;
       return NextResponse.json(Array.isArray(rows) ? rows : rows ? [rows] : []);

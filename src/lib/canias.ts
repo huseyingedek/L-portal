@@ -434,10 +434,10 @@ export async function callCaniasService(
         const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
 
         if (raw.startsWith('FL')) {
-          // Primary ilk denemede FL: oturum manuel kapatılmış olabilir → retry tetikle
+          // İlk denemede FL: oturum ölmüş olabilir → retry tetikle (tüm slotlar için)
           // İkinci+ denemede FL: gerçek iş hatası → döndür
-          if (slot === 0 && dongu === 0) {
-            console.log(`[CANIAS] FL alindi (slot=0, dongu=0, fn=${functionName}): oturum olmuş olabilir, yeniden deneniyor...`);
+          if (dongu === 0) {
+            console.log(`[CANIAS] FL alindi (slot=${slot}, dongu=0, fn=${functionName}): oturum olmust olabilir, yeniden deneniyor...`);
             throw new Error(`FL_SESSION: ${raw}`);
           }
           return { response: raw.substring(3), status: 'FL' };
