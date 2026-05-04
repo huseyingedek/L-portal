@@ -20,13 +20,6 @@ const HELPER_IDLE_MS     = 30 * 1_000; // 30 saniye boşta → kapat
 
 const SESSION_FILE = path.join(process.cwd(), 'canias_session.txt');
 
-// ── Oturum havuzu ─────────────────────────────────────────────────────────────
-//  Slot 0 = primary    (kalıcı, txt'e yazılır, hiç kapanmaz)
-//  Slot 1 = yardımcı 1 (30sn boşta kalırsa kapanır)
-//  Slot 2 = yardımcı 2 (30sn boşta kalırsa kapanır)
-//
-//  Kural: Boşta sadece 1 oturum (primary) kalır.
-//         Yoğunlukta max 3 oturum olabilir.
 
 let _sid0 = '', _sid1 = '', _sid2 = '';
 let _busy0 = false, _busy1 = false, _busy2 = false;
@@ -99,7 +92,6 @@ async function doLoginCall(client: Client, label: string): Promise<string> {
     REQUEST_TIMEOUT_MS,
     `Login (${label})`
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r0: any = (result as any)?.[0];
   const sid = parseRawValue(r0?.loginReturn ?? r0 ?? '');
   if (!sid) throw new Error('Login basarisiz, session ID bos dondu');
@@ -131,26 +123,17 @@ async function helperLogin2(client: Client, label: string): Promise<string> {
   return _login2Promise;
 }
 
-// ── Startup temizliği ─────────────────────────────────────────────────────────
-// Sunucu çökerse slot 1 ve slot 2 txt'ye yazılmaz → CANIAS'ta zombie kalır.
-// Çözüm: Startup'ta primaryLogin kullan (_login0Promise set edilir, eş zamanlı
-// istek gelirse duplicate login açılmaz), checkProcess ile tüm WSONLIZ
-// oturumlarını bul, yeni oturum hariç hepsini kapat → temiz başlangıç.
-
 async function startupCleanup(): Promise<void> {
   console.log('[CANIAS] Baslangic: zombie temizligi basliyor...');
   try {
     const client = await getSoapClient();
 
-    // primaryLogin kullan: _login0Promise set edilir → eş zamanlı istek gelirse
-    // duplicate login açılmaz, aynı promise'i bekler.
+
     await primaryLogin(client, 'startup');
     const mySid = _sid0;
     if (!mySid) return;
 
-    // checkProcess CONNECTIONID'yi "WSONLIZ_XXXX" döndürür (base64 kısmı olmadan).
-    // Login ise "WSONLIZ_XXXX|base64..." döndürür.
-    // Karşılaştırmayı doğru yapmak için base64 kısmını at.
+
     const mySidBase = mySid.split('|')[0];
 
     // checkProcess ile tüm WSONLIZ oturumlarını listele
@@ -207,18 +190,16 @@ async function startupCleanup(): Promise<void> {
 
 startupCleanup();
 
-// ── Yardımcı idle timer ───────────────────────────────────────────────────────
-// Slot serbest bırakıldığında 30sn timer başlar.
-// 30sn dolunca slot boşsa (busy değilse) oturumu kapatır.
+
 
 function startIdleTimer(slot: 1 | 2, client: Client): void {
   if (slot === 1) {
     if (_timer1) clearTimeout(_timer1);
     _timer1 = setTimeout(async () => {
       _timer1 = null;
-      if (!_sid1 || _busy1) return; // meşgulse dokunma
+      if (!_sid1 || _busy1) return;
       const sid = _sid1;
-      _sid1 = '';  // önce sıfırla (atomic - await öncesi, race condition yok)
+      _sid1 = '';
       console.log(`[CANIAS] Yardimci 1 bosta kaldi (30sn), oturum kapatiliyor: ${sid}`);
       try {
         await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'idle-logout-1');
@@ -231,7 +212,7 @@ function startIdleTimer(slot: 1 | 2, client: Client): void {
       _timer2 = null;
       if (!_sid2 || _busy2) return; // meşgulse dokunma
       const sid = _sid2;
-      _sid2 = '';  // önce sıfırla (atomic - await öncesi, race condition yok)
+      _sid2 = '';  
       console.log(`[CANIAS] Yardimci 2 bosta kaldi (30sn), oturum kapatiliyor: ${sid}`);
       try {
         await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'idle-logout-2');
@@ -260,7 +241,6 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       try { await primaryLogin(client, label); return 0; }
       catch (err) { _busy0 = false; throw err; }
     }
-    // Login sürüyor (startup veya başka istek) → aynı promise'i bekle
     _busy0 = true;
     try { await _login0Promise; return 0; }
     catch (err) { _busy0 = false; throw err; }
@@ -432,7 +412,8 @@ export async function callCaniasService(
 
   let sessionId  = sidOf(slot);
   const ilkToken = sessionId;
-  const MAX_DONGU = slot === 0 ? 10 : 2;
+  // Primary: max 6 deneme. Yardımcı: max 2 deneme.
+  const MAX_DONGU = slot === 0 ? 6 : 2;
 
   try {
     for (let dongu = 0; dongu < MAX_DONGU; dongu++) {
@@ -452,7 +433,15 @@ export async function callCaniasService(
         const res0: any = (result as any)?.[0];
         const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
 
-        if (raw.startsWith('FL')) return { response: raw.substring(3), status: 'FL' };
+        if (raw.startsWith('FL')) {
+          // Primary ilk denemede FL: oturum manuel kapatılmış olabilir → retry tetikle
+          // İkinci+ denemede FL: gerçek iş hatası → döndür
+          if (slot === 0 && dongu === 0) {
+            console.log(`[CANIAS] FL alindi (slot=0, dongu=0, fn=${functionName}): oturum olmuş olabilir, yeniden deneniyor...`);
+            throw new Error(`FL_SESSION: ${raw}`);
+          }
+          return { response: raw.substring(3), status: 'FL' };
+        }
 
         cleanupZombieSessions(client).catch(() => {});
         return { response: raw, status: 'OK' };
