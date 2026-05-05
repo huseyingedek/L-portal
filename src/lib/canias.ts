@@ -33,6 +33,9 @@ let _timer2: ReturnType<typeof setTimeout> | null = null;
 let _timer3: ReturnType<typeof setTimeout> | null = null;
 let _cleanupRunning = false;
 let _lastCleanup    = 0;
+// Login cooldown: basarisiz login sonrasi N sn slot atlanir (infinite retry onlenir)
+const LOGIN_COOLDOWN_MS = 5_000;
+let _loginCooldown1 = 0, _loginCooldown2 = 0, _loginCooldown3 = 0;
 
 function writeSessionFile(sid: string): void {
   try { fs.writeFileSync(SESSION_FILE, sid, 'utf8'); } catch { /**/ }
@@ -197,10 +200,10 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       if (_login1Promise) {
         _busy1 = true;
         try { await _login1Promise; return 1; } catch { _busy1 = false; }
-      } else {
+      } else if (Date.now() >= _loginCooldown1) {
         _busy1 = true;
         try { await helperLogin1(client, `${label}-yard1`); console.log('[CANIAS] Yardimci 1 devreye girdi.'); return 1; }
-        catch { console.log('[CANIAS] Yardimci 1 acilamadi.'); _busy1 = false; }
+        catch { console.log('[CANIAS] Yardimci 1 acilamadi.'); _loginCooldown1 = Date.now() + LOGIN_COOLDOWN_MS; _busy1 = false; }
       }
     }
     if (!_busy2) {
@@ -209,10 +212,10 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       if (_login2Promise) {
         _busy2 = true;
         try { await _login2Promise; return 2; } catch { _busy2 = false; }
-      } else {
+      } else if (Date.now() >= _loginCooldown2) {
         _busy2 = true;
         try { await helperLogin2(client, `${label}-yard2`); console.log('[CANIAS] Yardimci 2 devreye girdi.'); return 2; }
-        catch { console.log('[CANIAS] Yardimci 2 acilamadi.'); _busy2 = false; }
+        catch { console.log('[CANIAS] Yardimci 2 acilamadi.'); _loginCooldown2 = Date.now() + LOGIN_COOLDOWN_MS; _busy2 = false; }
       }
     }
     if (!_busy3) {
@@ -221,16 +224,16 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       if (_login3Promise) {
         _busy3 = true;
         try { await _login3Promise; return 3; } catch { _busy3 = false; }
-      } else {
+      } else if (Date.now() >= _loginCooldown3) {
         _busy3 = true;
         try { await helperLogin3(client, `${label}-yard3`); console.log('[CANIAS] Yardimci 3 devreye girdi.'); return 3; }
-        catch { console.log('[CANIAS] Yardimci 3 acilamadi, bekleniyor...'); _busy3 = false; }
+        catch { console.log('[CANIAS] Yardimci 3 acilamadi.'); _loginCooldown3 = Date.now() + LOGIN_COOLDOWN_MS; _busy3 = false; }
       }
     }
     if (Date.now() - started >= SLOT_TIMEOUT_MS) {
       throw new Error(`acquireSlot: ${SLOT_TIMEOUT_MS}ms icerisinde bos slot bulunamadi (fn=${label})`);
     }
-    await new Promise(r => setTimeout(r, 30));
+    await new Promise(r => setTimeout(r, 200));
   }
 }
 
@@ -473,15 +476,4 @@ async function gracefulLogout(): Promise<void> {
   if (_timer2) { clearTimeout(_timer2); _timer2 = null; }
   if (_timer3) { clearTimeout(_timer3); _timer3 = null; }
   for (const sid of [_sid0, _sid1, _sid2, _sid3].filter(Boolean)) {
-    try {
-      await withTimeout(_client.logoutAsync({ sessionid: sid }), 5_000, 'Graceful logout');
-      console.log(`[CANIAS] Graceful shutdown: ${sid} kapatildi`);
-    } catch { /**/ }
-  }
-
-  clearSessionFile();
-  _sid0 = ''; _sid1 = ''; _sid2 = ''; _sid3 = '';
-}
-
-process.once('SIGTERM', async () => { await gracefulLogout(); process.exit(0); });
-process.once('SIGINT',  async () => { await gracefulLogout(); process.exit(0); });
+    try 
