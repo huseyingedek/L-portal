@@ -18,11 +18,11 @@ const LOGIN_ARGS = {
 };
 
 const WSDL_TIMEOUT_MS    = 15_000;
-const REQUEST_TIMEOUT_MS = 60_000;  // 30'dan 60'a çıkarıldı — CANIAS yavaş olsa bile bekle
-const SLOT_TIMEOUT_MS    = 120_000; // 30'dan 120'ye çıkarıldı — 200 bayi sıra beklese bile çökme
+const REQUEST_TIMEOUT_MS = 60_000;
+const SLOT_TIMEOUT_MS    = 120_000;
 const HELPER_IDLE_MS     = 30_000;
 const MAX_SESSIONS       = 4;
-const MAX_RETRY          = 10;
+const MAX_RETRY          = 10; // 3'ten 10'a çıkarıldı
 
 const SESSION_FILE = path.join(process.cwd(), 'canias_session.txt');
 
@@ -39,30 +39,23 @@ let _timer1: ReturnType<typeof setTimeout> | null = null;
 let _timer2: ReturnType<typeof setTimeout> | null = null;
 let _timer3: ReturnType<typeof setTimeout> | null = null;
 
-// Açık oturum sayacı — await'ten ÖNCE artırılır (JS single-thread = atomik)
-// Böylece eş zamanlı isteklerde MAX_SESSIONS kesinlikle aşılamaz
 let _openCount = 0;
 
-// Zombie temizliği kilidi + throttle
 let _cleanupRunning = false;
 let _lastCleanup    = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CIRCUIT BREAKER STATE
-// CLOSED  → normal çalışma
-// OPEN    → sunucu erişilemiyor, istekleri anında reddet
-// HALF    → reset süresi doldu, 1 test isteği gönder
+// CIRCUIT BREAKER
 // ─────────────────────────────────────────────────────────────────────────────
 type CircuitState = 'CLOSED' | 'OPEN' | 'HALF';
 let _circuitState       : CircuitState = 'CLOSED';
 let _circuitOpenedAt    : number       = 0;
-let _consecutiveSoapFail: number       = 0; // arka arkaya SOAP bağlantı hatası sayısı
-let _consecutiveTimeout : number       = 0; // arka arkaya timeout sayısı
+let _consecutiveSoapFail: number       = 0;
+let _consecutiveTimeout : number       = 0;
 
-// Kaç arka arkaya hata olursa circuit açılır
-const CIRCUIT_SOAP_FAIL_THRESHOLD = 3;  // 3 SOAP bağlantı hatası → anında aç
-const CIRCUIT_TIMEOUT_THRESHOLD   = 5;  // 5 arka arkaya timeout → aç
-const CIRCUIT_RESET_MS            = 30_000; // 30sn sonra HALF-OPEN → test isteği
+const CIRCUIT_SOAP_FAIL_THRESHOLD = 3;
+const CIRCUIT_TIMEOUT_THRESHOLD   = 5;
+const CIRCUIT_RESET_MS            = 30_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI FONKSİYONLAR
@@ -73,6 +66,10 @@ function writeSessionFile(sid: string): void {
 
 function clearSessionFile(): void {
   try { fs.writeFileSync(SESSION_FILE, '', 'utf8'); } catch { /**/ }
+}
+
+function readSessionFile(): string {
+  try { return fs.readFileSync(SESSION_FILE, 'utf8').trim(); } catch { return ''; }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -100,28 +97,32 @@ function parseRawValue(rawValue: unknown): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TÜM SLOTLARI SIFIRLA
+// Manuel kapatma veya toplu session hatası durumunda çağrılır.
+// ─────────────────────────────────────────────────────────────────────────────
+function resetAllSlots(): void {
+  console.log('[CANIAS] Tum slotlar sifirlaniyor (_openCount → 0)');
+  _sid0 = ''; _sid1 = ''; _sid2 = ''; _sid3 = '';
+  _openCount = 0;
+  clearSessionFile();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CIRCUIT BREAKER FONKSİYONLARI
 // ─────────────────────────────────────────────────────────────────────────────
-
-// İstek göndermeden önce çağrılır — true ise isteği reddet
 function isCircuitOpen(): boolean {
   if (_circuitState === 'CLOSED') return false;
-
   if (_circuitState === 'OPEN') {
-    // Reset süresi doldu mu?
     if (Date.now() - _circuitOpenedAt >= CIRCUIT_RESET_MS) {
       _circuitState = 'HALF';
       console.log('[CANIAS] Circuit HALF-OPEN — test istegi gonderiliyor...');
-      return false; // 1 test isteğine izin ver
+      return false;
     }
-    return true; // hâlâ açık, reddet
+    return true;
   }
-
-  // HALF: sadece 1 test isteğine izin verildi, diğerlerini reddet
   return false;
 }
 
-// Başarılı istek geldi → her sayacı sıfırla, circuit'i kapat
 function onSuccess(): void {
   if (_circuitState !== 'CLOSED') {
     console.log('[CANIAS] Circuit CLOSED — sunucu geri geldi ✅');
@@ -131,9 +132,8 @@ function onSuccess(): void {
   _consecutiveTimeout  = 0;
 }
 
-// SOAP bağlantı hatası (timeout DEĞİL — sunucu gerçekten erişilemiyor)
 function onSoapError(): void {
-  _consecutiveTimeout  = 0; // farklı tip hata, timeout sayacını sıfırla
+  _consecutiveTimeout  = 0;
   _consecutiveSoapFail++;
   console.log(`[CANIAS] SOAP baglanti hatasi — arka arkaya: ${_consecutiveSoapFail}`);
   if (_consecutiveSoapFail >= CIRCUIT_SOAP_FAIL_THRESHOLD) {
@@ -143,9 +143,8 @@ function onSoapError(): void {
   }
 }
 
-// Timeout hatası (sunucu yavaş olabilir, çökmüş de olabilir)
 function onTimeout(): void {
-  _consecutiveSoapFail = 0; // farklı tip hata
+  _consecutiveSoapFail = 0;
   _consecutiveTimeout++;
   console.log(`[CANIAS] Timeout — arka arkaya: ${_consecutiveTimeout}`);
   if (_consecutiveTimeout >= CIRCUIT_TIMEOUT_THRESHOLD) {
@@ -155,14 +154,13 @@ function onTimeout(): void {
   }
 }
 
-// FL hatası → oturum sorunu, sunucu sağlıklı → circuit'e dokunma
 function onFL(): void {
   _consecutiveSoapFail = 0;
   _consecutiveTimeout  = 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SOAP CLIENT (tekil, lazy)
+// SOAP CLIENT
 // ─────────────────────────────────────────────────────────────────────────────
 let _client:        Client | null          = null;
 let _clientPromise: Promise<Client> | null = null;
@@ -181,8 +179,6 @@ async function getSoapClient(): Promise<Client> {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOGIN
-// _openCount artırımı ÇAĞIRAN yerde yapılır (await öncesi, senkron = atomik).
-// Hata olursa .catch() içinde geri alınır → double-count imkânsız.
 // ─────────────────────────────────────────────────────────────────────────────
 async function doLoginCall(client: Client, label: string): Promise<string> {
   console.log(`[CANIAS] Login atiliyor... (${label})`);
@@ -236,7 +232,7 @@ async function helperLogin3(client: Client, label: string): Promise<string> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IDLE TIMER (yardımcı slotlar için)
+// IDLE TIMER
 // ─────────────────────────────────────────────────────────────────────────────
 function startIdleTimer(slot: 1 | 2 | 3, client: Client): void {
   const fire = async (slotNum: 1 | 2 | 3) => {
@@ -252,7 +248,7 @@ function startIdleTimer(slot: 1 | 2 | 3, client: Client): void {
     else _timer3 = null;
 
     const sid = getSid();
-    if (!sid || getBusy()) return; // meşgulse dokunma
+    if (!sid || getBusy()) return;
 
     clearSid();
     decrementCount(`idle-slot${slotNum}`);
@@ -290,7 +286,6 @@ function sidOf(slot: SlotNum): string {
   return _sid3;
 }
 
-// Slot'u geçersiz kıl: sid sil + sayaç azalt + logout (fire-and-forget)
 function invalidateSlotSid(slot: SlotNum, client: Client): void {
   const sid = sidOf(slot);
   if (!sid) return;
@@ -311,24 +306,21 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
 
   while (true) {
 
-    // ── Slot 0 (Primary — her zaman açık kalır) ──────────────────────────────
     if (!_busy0) {
       if (_sid0) { _busy0 = true; return 0; }
       if (_login0Promise) {
-        // Devam eden login var: double-count ETME, sadece bekle
         _busy0 = true;
         try { await _login0Promise; return 0; }
         catch (err) { _busy0 = false; throw err; }
       }
       if (_openCount < MAX_SESSIONS) {
-        _openCount++; // pre-increment (atomik)
+        _openCount++;
         _busy0 = true;
         try { await primaryLogin(client, label); return 0; }
-        catch (err) { _busy0 = false; throw err; } // decrementCount primaryLogin.catch'de yapıldı
+        catch (err) { _busy0 = false; throw err; }
       }
     }
 
-    // ── Slot 1 ───────────────────────────────────────────────────────────────
     if (!_busy1) {
       cancelIdleTimer(1);
       if (_sid1) { _busy1 = true; return 1; }
@@ -350,7 +342,6 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       }
     }
 
-    // ── Slot 2 ───────────────────────────────────────────────────────────────
     if (!_busy2) {
       cancelIdleTimer(2);
       if (_sid2) { _busy2 = true; return 2; }
@@ -372,7 +363,6 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       }
     }
 
-    // ── Slot 3 ───────────────────────────────────────────────────────────────
     if (!_busy3) {
       cancelIdleTimer(3);
       if (_sid3) { _busy3 = true; return 3; }
@@ -394,14 +384,12 @@ async function acquireSlot(client: Client, label: string): Promise<SlotNum> {
       }
     }
 
-    // ── Timeout kontrolü ─────────────────────────────────────────────────────
     if (Date.now() - started >= SLOT_TIMEOUT_MS) {
       throw new Error(
         `acquireSlot: ${SLOT_TIMEOUT_MS}ms icerisinde bos slot bulunamadi (fn=${label})`
       );
     }
 
-    // Kısa bekle, tekrar dene (busy-wait — 200 bayi için yeterli)
     await new Promise(r => setTimeout(r, 30));
   }
 }
@@ -414,7 +402,7 @@ function releaseSlot(slot: SlotNum, client: Client): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ZOMBIE TEMİZLİĞİ (başlangıçta bir kez + her başarılı çağrı sonrası throttled)
+// ZOMBIE TEMİZLİĞİ
 // ─────────────────────────────────────────────────────────────────────────────
 type SessionRow = Record<string, string>;
 
@@ -451,7 +439,7 @@ async function safeLogout(client: Client, sid: string): Promise<void> {
 async function cleanupZombieSessions(client: Client): Promise<void> {
   if (_cleanupRunning) return;
   const now = Date.now();
-  if (now - _lastCleanup < 2 * 60_000) return; // max 2 dakikada bir
+  if (now - _lastCleanup < 2 * 60_000) return;
   _cleanupRunning = true;
   _lastCleanup    = now;
   try {
@@ -459,13 +447,10 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
     if (!sessions) return;
 
     const bizimSidler = [_sid0, _sid1, _sid2, _sid3].filter(Boolean);
-
-    // ── SADECE WSONLIZ oturumlarına bak — diğer kullanıcılara DOKUNMA ────────
     const wsonlizSessions = sessions.filter(
       s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ')
     );
 
-    // Boşta olan yabancı WSONLIZ oturumlarını kapat
     const yabanciIdle = wsonlizSessions.filter(
       s => Number(s.PROCESSTIME ?? 0) === 0 &&
            s.CONNECTIONID &&
@@ -473,7 +458,6 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
     );
     for (const s of yabanciIdle) await safeLogout(client, s.CONNECTIONID);
 
-    // Aktif yabancı WSONLIZ oturumları bitene kadar (max 2 dk) bekle, sonra kapat
     let digerAktifler = wsonlizSessions.filter(
       s => Number(s.PROCESSTIME ?? 0) > 0 &&
            s.CONNECTIONID &&
@@ -506,23 +490,46 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
   finally { _cleanupRunning = false; }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STARTUP CLEANUP
+// Sıra:
+//   1. Dosyadaki eski session'ı kapat (zombie olabilir, limit dolabilir)
+//   2. Yeni login aç
+//   3. checkProcess ile kalan zombieleri temizle
+// ─────────────────────────────────────────────────────────────────────────────
 async function startupCleanup(): Promise<void> {
   console.log('[CANIAS] Baslangic: zombie temizligi basliyor...');
   try {
     const client = await getSoapClient();
-    // Slot 0'ı kilitle — eş zamanlı ilk isteklerle race olmasın
+
+    // 1. Dosyadaki eski session'ı kapat — limit doluysa bu boşaltır
+    const fileSid = readSessionFile();
+    if (fileSid) {
+      console.log(`[CANIAS] Baslangic: eski session kapatiliyor -> ${fileSid}`);
+      try {
+        await withTimeout(
+          client.logoutAsync({ sessionid: fileSid }),
+          5_000, 'startup-old-session-logout'
+        );
+        console.log('[CANIAS] Baslangic: eski session kapatildi.');
+      } catch {
+        console.log('[CANIAS] Baslangic: eski session zaten yoktu.');
+      }
+      clearSessionFile();
+    }
+
+    // 2. Slot 0'ı kilitle ve yeni login aç
     _busy0 = true;
-    if (!_sid0 && !_login0Promise) {
-      if (_openCount < MAX_SESSIONS) {
-        _openCount++;
-        try {
-          await primaryLogin(client, 'startup');
-        } catch (err) {
-          _busy0 = false;
-          console.log(`[CANIAS] Baslangic login hatasi: ${err instanceof Error ? err.message : String(err)}`);
-          clearSessionFile();
-          return;
-        }
+    if (_openCount < MAX_SESSIONS) {
+      _openCount++;
+      try {
+        await primaryLogin(client, 'startup');
+      } catch (err) {
+        _openCount--;  // decrementCount primaryLogin.catch'de de çağrılıyor, max(0) ile güvenli
+        _busy0 = false;
+        console.log(`[CANIAS] Baslangic login hatasi: ${err instanceof Error ? err.message : String(err)}`);
+        clearSessionFile();
+        return;
       }
     } else if (_login0Promise) {
       try { await _login0Promise; } catch { _busy0 = false; return; }
@@ -533,6 +540,7 @@ async function startupCleanup(): Promise<void> {
     if (!mySid) return;
     const mySidBase = mySid.split('|')[0];
 
+    // 3. checkProcess ile kalan zombie'leri bul ve kapat
     const result = await withTimeout(
       client.callIASServiceAsync({
         sessionid: mySid,
@@ -550,28 +558,23 @@ async function startupCleanup(): Promise<void> {
       console.log('[CANIAS] Baslangic: checkProcess bos dondu, temiz.');
       return;
     }
+
     const parsed = JSON.parse(raw);
     const sessions: SessionRow[] = Array.isArray(parsed)
       ? parsed
       : (Object.values(parsed) as SessionRow[]);
 
-    // ── SADECE WSONLIZ oturumlarına bak — diğer kullanıcılara DOKUNMA ────────
     const wsonlizSessions = sessions.filter(
       s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ')
     );
     console.log(`[CANIAS] Baslangic: CANIAS'ta ${wsonlizSessions.length} WSONLIZ oturumu bulundu.`);
 
-    // Bizim yeni açtığımız oturum (mySid) dışındakiler zombie
     const zombiler = wsonlizSessions.filter(
       s => s.CONNECTIONID !== mySid && s.CONNECTIONID !== mySidBase
     );
 
-    // _openCount'u gerçek duruma göre ayarla:
-    // Bizim 1 yeni oturumumuz var, zombiler henüz kapatılmadı
-    // Kapatma bittikten sonra net durum: sadece bizimki kalır
     if (zombiler.length === 0) {
       console.log('[CANIAS] Baslangic: WSONLIZ zombie yok, temiz.');
-      // _openCount zaten startup'ta 1 olarak set edildi (primaryLogin ile)
       return;
     }
 
@@ -588,7 +591,6 @@ async function startupCleanup(): Promise<void> {
         console.log(`[CANIAS] Baslangic: zombie zaten olmuste -> ${s.CONNECTIONID}`);
       }
     }
-    // Zombiler kapatıldı — _openCount artık doğru (primaryLogin'de 1 olarak set edildi)
   } catch (err) {
     _busy0 = false;
     console.log(`[CANIAS] Baslangic temizligi basarisiz: ${err instanceof Error ? err.message : String(err)}`);
@@ -608,8 +610,6 @@ export async function callCaniasService(
   params: string[]
 ): Promise<{ response: string; status: 'OK' | 'FL' }> {
 
-  // ── Circuit breaker kontrolü ─────────────────────────────────────────────
-  // OPEN durumdaysa slot bile almadan anında reddet
   if (isCircuitOpen()) {
     console.log(`[CANIAS] Circuit OPEN — istek reddedildi (fn=${functionName})`);
     return { response: 'Sunucu gecici olarak erisilemuyor, lutfen bekleyin', status: 'FL' };
@@ -636,7 +636,9 @@ export async function callCaniasService(
       // Session yoksa yenile
       if (!sessionId) {
         if (_openCount >= MAX_SESSIONS) {
-          await new Promise(r => setTimeout(r, 1_000 * (attempt + 1)));
+          // Tüm slotlar dolu ama session yok — muhtemelen hepsi aynı anda invalidate oldu
+          // Kısa bekle, bir sonraki attempt'te tekrar dene
+          await new Promise(r => setTimeout(r, 500));
           sessionId = sidOf(slot);
           continue;
         }
@@ -652,7 +654,7 @@ export async function callCaniasService(
             `[CANIAS] Slot ${slot} login hatasi (attempt=${attempt}): ` +
             `${loginErr instanceof Error ? loginErr.message : loginErr}`
           );
-          await new Promise(r => setTimeout(r, 1_000 * (attempt + 1)));
+          await new Promise(r => setTimeout(r, 500));
           continue;
         }
       }
@@ -674,45 +676,58 @@ export async function callCaniasService(
         const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
 
         if (raw.startsWith('FL')) {
-          // ── FL ayrımı ──────────────────────────────────────────────────
-          // "FL"     → gerçek session hatası → invalidate, yeni login aç
-          // "FL;..." → iş mantığı hatası     → session sağlıklı, direkt döndür
-          //
-          // Örnekler:
-          //   FL                             → session geçersiz
-          //   FL;Geçersiz İş Alanı           → iş hatası, session tamam
-          //   FL;Aynı Seri ve Numarada Kayıt → iş hatası, session tamam
-          // ───────────────────────────────────────────────────────────────
           const flBody = raw.substring(2); // "FL" sonrası ("" veya ";..." şeklinde)
+          const flLower = flBody.toLowerCase();
 
+          // ── Lisans hatası: session sağlam, sadece bekle ve tekrar dene ──────
+          // Session'ı öldürme! Yeni login açmaya kalkma! Sadece bekle.
+          const isLicenseError =
+            flLower.includes('lisans') ||
+            flLower.includes('license') ||
+            flLower.includes('maximum session') ||
+            flLower.includes('max session');
+
+          if (isLicenseError) {
+            console.log(
+              `[CANIAS] Lisans hatasi (slot=${slot}, attempt=${attempt}, fn=${functionName}): ` +
+              `session korunuyor, bekleniyor...`
+            );
+            await new Promise(r => setTimeout(r, 300));
+            continue;
+          }
+
+          // ── Session hatası: tüm slotları sıfırla, yeniden login aç ──────────
+          // "FL" (tek başına) veya session/oturum/login/timeout içeriyorsa
           const isSessionError =
-            flBody === '' ||                               // sadece "FL"
-            flBody.toLowerCase().includes('session')   ||
-            flBody.toLowerCase().includes('oturum')    ||
-            flBody.toLowerCase().includes('login')     ||
-            flBody.toLowerCase().includes('timeout');
+            flBody === '' ||
+            flLower.includes('session')  ||
+            flLower.includes('oturum')   ||
+            flLower.includes('login')    ||
+            flLower.includes('timeout');
 
           if (isSessionError) {
             console.log(
               `[CANIAS] FL session hatasi (slot=${slot}, attempt=${attempt}, fn=${functionName}): ` +
-              `oturum yenileniyor...`
+              `tum slotlar sifirlaniyor...`
             );
             onFL();
-            invalidateSlotSid(slot, client);
+            // Tüm slotları sıfırla — manuel kapatma senaryosuna karşı güvenli
+            resetAllSlots();
             sessionId = '';
+            await new Promise(r => setTimeout(r, 300));
             continue;
           }
 
-          // İş mantığı hatası → session sağlıklı, direkt döndür
+          // ── İş mantığı hatası: session sağlıklı, direkt döndür ──────────────
           console.log(
             `[CANIAS] FL is hatasi (slot=${slot}, fn=${functionName}): ${raw} — session korunuyor`
           );
-          onSuccess(); // session çalışıyor, sayaçları sıfırla
+          onSuccess();
           return { response: raw, status: 'FL' };
         }
 
-        // ── Başarılı ────────────────────────────────────────────────────────
-        onSuccess(); // tüm sayaçları sıfırla, circuit'i kapat
+        // ── Başarılı ──────────────────────────────────────────────────────────
+        onSuccess();
         cleanupZombieSessions(client).catch(() => {});
         return { response: raw, status: 'OK' };
 
@@ -724,14 +739,13 @@ export async function callCaniasService(
         );
 
         if (isTimeout) {
-          // Timeout → oturum hâlâ geçerli olabilir; sayaç artır, bekle, tekrar dene
           onTimeout();
           console.log(`[CANIAS] Timeout, session korunuyor, tekrar deneniyor...`);
           await new Promise(r => setTimeout(r, 2_000));
           continue;
         }
 
-        // SOAP bağlantı hatası → sunucu erişilemiyor olabilir
+        // SOAP bağlantı hatası
         onSoapError();
         invalidateSlotSid(slot, client);
         sessionId = '';
@@ -744,7 +758,6 @@ export async function callCaniasService(
   return { response: 'Maksimum deneme sayisina ulasildi', status: 'FL' };
 }
 
-// Geriye dönük uyumluluk
 export const callCaniasServiceWithLogout = callCaniasService;
 
 // ─────────────────────────────────────────────────────────────────────────────
