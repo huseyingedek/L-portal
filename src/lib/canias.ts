@@ -97,17 +97,6 @@ function parseRawValue(rawValue: unknown): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TÜM SLOTLARI SIFIRLA
-// Manuel kapatma veya toplu session hatası durumunda çağrılır.
-// ─────────────────────────────────────────────────────────────────────────────
-function resetAllSlots(): void {
-  console.log('[CANIAS] Tum slotlar sifirlaniyor (_openCount → 0)');
-  _sid0 = ''; _sid1 = ''; _sid2 = ''; _sid3 = '';
-  _openCount = 0;
-  clearSessionFile();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // CIRCUIT BREAKER FONKSİYONLARI
 // ─────────────────────────────────────────────────────────────────────────────
 function isCircuitOpen(): boolean {
@@ -129,7 +118,9 @@ function onSuccess(): void {
   }
   _circuitState        = 'CLOSED';
   _consecutiveSoapFail = 0;
-  _consecutiveTimeout  = 0;
+  // _consecutiveTimeout kasıtlı olarak sıfırlanmıyor.
+  // Başka bir fonksiyonun başarısı, timeout'ların üzerini örtmesin.
+  // Yalnızca onTimeout() ve circuit reset sıfırlar.
 }
 
 function onSoapError(): void {
@@ -607,7 +598,8 @@ startupCleanup().catch(err =>
 // ─────────────────────────────────────────────────────────────────────────────
 export async function callCaniasService(
   functionName: string,
-  params: string[]
+  params: string[],
+  timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<{ response: string; status: 'OK' | 'FL' }> {
 
   if (isCircuitOpen()) {
@@ -668,7 +660,7 @@ export async function callCaniasService(
             returntype: 'STRING',
             permanent:  false,
           }),
-          REQUEST_TIMEOUT_MS,
+          timeoutMs,  // per-call timeout
           functionName
         );
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -708,11 +700,10 @@ export async function callCaniasService(
           if (isSessionError) {
             console.log(
               `[CANIAS] FL session hatasi (slot=${slot}, attempt=${attempt}, fn=${functionName}): ` +
-              `tum slotlar sifirlaniyor...`
+              `oturum yenileniyor...`
             );
             onFL();
-            // Tüm slotları sıfırla — manuel kapatma senaryosuna karşı güvenli
-            resetAllSlots();
+            invalidateSlotSid(slot, client);
             sessionId = '';
             await new Promise(r => setTimeout(r, 300));
             continue;
