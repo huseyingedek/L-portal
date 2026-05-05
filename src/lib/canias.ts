@@ -477,6 +477,11 @@ export async function callCaniasService(
     releaseSlot(slot, client);
   }
 
+  // Tum denemeler basarisiz: session gecersiz sayilir, bir sonraki istek yeniden login acacak
+  if (slot === 0) { _sid0 = ''; clearSessionFile(); }
+  else if (slot === 1) _sid1 = '';
+  else if (slot === 2) _sid2 = '';
+  else _sid3 = '';
   return { response: 'Maksimum deneme sayisina ulasildi', status: 'FL' };
 }
 
