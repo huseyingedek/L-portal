@@ -46,6 +46,14 @@ function clearSessionFile(): void {
 function readSessionFile(): string {
   try { return fs.readFileSync(SESSION_FILE, 'utf8').trim(); } catch { return ''; }
 }
+// Tum acik session'lari diske kaydet (restart sonrasi temizlik icin)
+function writeAllSessionsFile(): void {
+  const all = [_sid0, _sid1, _sid2, _sid3].filter(Boolean).join('\n');
+  try { fs.writeFileSync(SESSION_FILE, all, 'utf8'); } catch { /**/ }
+}
+function readAllSessionsFile(): string[] {
+  try { return fs.readFileSync(SESSION_FILE, 'utf8').trim().split('\n').filter(Boolean); } catch { return []; }
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -102,21 +110,21 @@ async function primaryLogin(client: Client, label: string): Promise<string> {
 async function helperLogin1(client: Client, label: string): Promise<string> {
   if (_login1Promise) return _login1Promise;
   _login1Promise = doLoginCall(client, label)
-    .then(sid => { _sid1 = sid; return sid; })
+    .then(sid => { _sid1 = sid; writeAllSessionsFile(); return sid; })
     .finally(() => { _login1Promise = null; });
   return _login1Promise;
 }
 async function helperLogin2(client: Client, label: string): Promise<string> {
   if (_login2Promise) return _login2Promise;
   _login2Promise = doLoginCall(client, label)
-    .then(sid => { _sid2 = sid; return sid; })
+    .then(sid => { _sid2 = sid; writeAllSessionsFile(); return sid; })
     .finally(() => { _login2Promise = null; });
   return _login2Promise;
 }
 async function helperLogin3(client: Client, label: string): Promise<string> {
   if (_login3Promise) return _login3Promise;
   _login3Promise = doLoginCall(client, label)
-    .then(sid => { _sid3 = sid; return sid; })
+    .then(sid => { _sid3 = sid; writeAllSessionsFile(); return sid; })
     .finally(() => { _login3Promise = null; });
   return _login3Promise;
 }
@@ -136,6 +144,7 @@ function startIdleTimer(slot: 1 | 2 | 3, client: Client): void {
     const sid = getSid();
     if (!sid || getBusy()) return;
     clearSid();
+    writeAllSessionsFile();
     console.log(`[CANIAS] Yardimci ${slotNum} bosta kaldi (30sn), kapatiliyor: ${sid}`);
     try {
       await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, `idle-logout-${slotNum}`);
@@ -303,14 +312,16 @@ async function startupCleanup(): Promise<void> {
   try {
     const client = await getSoapClient();
 
-    // 1. Dosyadaki eski session'i kapat
-    const fileSid = readSessionFile();
-    if (fileSid) {
-      console.log(`[CANIAS] Baslangic: eski session kapatiliyor -> ${fileSid}`);
-      try {
-        await withTimeout(client.logoutAsync({ sessionid: fileSid }), 5_000, 'startup-old-logout');
-        console.log('[CANIAS] Baslangic: eski session kapatildi.');
-      } catch { console.log('[CANIAS] Baslangic: eski session zaten yoktu.'); }
+    // 1. Dosyadaki tum eski session'lari kapat (slot 0 + helper'lar)
+    const fileSidler = readAllSessionsFile();
+    if (fileSidler.length > 0) {
+      console.log(`[CANIAS] Baslangic: ${fileSidler.length} eski session kapatiliyor...`);
+      await Promise.allSettled(fileSidler.map(async sid => {
+        try {
+          await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'startup-old-logout');
+          console.log(`[CANIAS] Baslangic: eski session kapatildi -> ${sid}`);
+        } catch { console.log(`[CANIAS] Baslangic: eski session zaten yoktu -> ${sid}`); }
+      }));
       clearSessionFile();
     }
 
