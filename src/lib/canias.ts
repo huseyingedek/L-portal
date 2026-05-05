@@ -476,4 +476,15 @@ async function gracefulLogout(): Promise<void> {
   if (_timer2) { clearTimeout(_timer2); _timer2 = null; }
   if (_timer3) { clearTimeout(_timer3); _timer3 = null; }
   for (const sid of [_sid0, _sid1, _sid2, _sid3].filter(Boolean)) {
-    try 
+    try {
+      await withTimeout(_client.logoutAsync({ sessionid: sid }), 5_000, 'Graceful logout');
+      console.log(`[CANIAS] Graceful shutdown: ${sid} kapatildi`);
+    } catch { /**/ }
+  }
+
+  clearSessionFile();
+  _sid0 = ''; _sid1 = ''; _sid2 = ''; _sid3 = '';
+}
+
+process.once('SIGTERM', async () => { await gracefulLogout(); process.exit(0); });
+process.once('SIGINT',  async () => { await gracefulLogout(); process.exit(0); });
