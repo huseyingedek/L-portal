@@ -470,6 +470,16 @@ export async function callCaniasService(
 
 export const callCaniasServiceWithLogout = callCaniasService;
 
+// Her 3 dakikada bir logProcess cagirilir — sunucu durumu PM2 loglarına düşer
+setInterval(async () => {
+  try {
+    const { response, status } = await callCaniasService('logProcess', [], 30_000);
+    console.log(`[CANIAS] logProcess (${status}): ${response}`);
+  } catch (err) {
+    console.log(`[CANIAS] logProcess hata: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}, 3 * 60_000);
+
 async function gracefulLogout(): Promise<void> {
   if (!_client) return;
   if (_timer1) { clearTimeout(_timer1); _timer1 = null; }
