@@ -334,53 +334,104 @@ async function startupCleanup(): Promise<void> {
   try {
     const client = await getSoapClient();
 
-    // 1. Dosyadaki tum eski session'lari kapat (slot 0 + helper'lar)
+    // 1. Txt'deki ilk session slot 0 adayi — checkSessionId ile canli mi ol mu kontrol et
     const fileSidler = readAllSessionsFile();
-    if (fileSidler.length > 0) {
-      console.log(`[CANIAS] Baslangic: ${fileSidler.length} eski session kapatiliyor...`);
-      await Promise.allSettled(fileSidler.map(async sid => {
+    const [candidateSid, ...helperSidler] = fileSidler;
+
+    if (candidateSid) {
+      console.log(`[CANIAS] Baslangic: mevcut token kontrol ediliyor -> ${candidateSid}`);
+      try {
+        const r = await withTimeout(
+          client.callIASServiceAsync({ sessionid: candidateSid, serviceid: 'checkSessionId', args: '', returntype: 'STRING', permanent: false }),
+          5_000, 'startup-checkSessionId'
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const res0: any = (r as any)?.[0];
+        const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+        if (!raw.startsWith('FL')) {
+          // Token canli — direkt kullan, yeniden login acma
+          _sid0 = candidateSid;
+          console.log(`[CANIAS] Baslangic: mevcut token canli, kullaniliyor -> ${candidateSid}`);
+        } else {
+          console.log(`[CANIAS] Baslangic: mevcut token olmus, yeni login aciliyor.`);
+        }
+      } catch {
+        console.log(`[CANIAS] Baslangic: checkSessionId timeout, yeni login aciliyor.`);
+      }
+    }
+
+    // Helper session'lari her zaman kapat (idle kalmis olabilirler)
+    if (helperSidler.length > 0) {
+      await Promise.allSettled(helperSidler.map(async sid => {
         try {
-          await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'startup-old-logout');
-          console.log(`[CANIAS] Baslangic: eski session kapatildi -> ${sid}`);
-        } catch { console.log(`[CANIAS] Baslangic: eski session zaten yoktu -> ${sid}`); }
+          await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'startup-helper-logout');
+          console.log(`[CANIAS] Baslangic: helper session kapatildi -> ${sid}`);
+        } catch { /**/ }
       }));
-      clearSessionFile();
     }
 
-    // 2. Primary login
-    _busy0 = true;
-    try {
-      await primaryLogin(client, 'startup');
-    } catch (err) {
+    // 2. Slot 0 hala bos ise yeni login ac
+    if (!_sid0) {
+      _busy0 = true;
+      try {
+        await primaryLogin(client, 'startup');
+      } catch (err) {
+        _busy0 = false;
+        console.log(`[CANIAS] Baslangic login hatasi: ${err instanceof Error ? err.message : String(err)}`);
+        clearSessionFile();
+        return;
+      }
       _busy0 = false;
-      console.log(`[CANIAS] Baslangic login hatasi: ${err instanceof Error ? err.message : String(err)}`);
-      clearSessionFile();
-      return;
     }
-    _busy0 = false;
 
+    writeAllSessionsFile();
     const mySid = _sid0;
     if (!mySid) return;
 
-    // 3. checkProcess ile zombie'leri temizle
-    // bizimSidler: o ana kadar acilmis TUM slotlari koru (startup sirasinda helper acilabilir)
-    const result = await withTimeout(
-      client.callIASServiceAsync({ sessionid: mySid, serviceid: 'checkProcess', args: 'WSONLIZ', returntype: 'STRING', permanent: false }),
-      10_000, 'startup-checkProcess'
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res0: any = (result as any)?.[0];
-    const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
-    if (!raw || raw.startsWith('FL')) { console.log('[CANIAS] Baslangic: checkProcess bos dondu, temiz.'); return; }
-
-    const parsed = JSON.parse(raw);
-    const sessions: SessionRow[] = Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
-    const wsonliz = sessions.filter(s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ'));
-    console.log(`[CANIAS] Baslangic: CANIAS'ta ${wsonliz.length} WSONLIZ oturumu bulundu.`);
-
+    // 3. SYSGETUSERINFOLIST ile TUM zombie'leri temizle (checkProcess uzun-idle zombie'leri gormez)
     const bizimSidler = [_sid0, _sid1, _sid2, _sid3]
       .filter(Boolean)
       .map(s => s.split('|')[0]);
+
+    let sessions: SessionRow[] | null = null;
+
+    // Once SYSGETUSERINFOLIST dene (hepsini goren servis)
+    try {
+      const r = await withTimeout(
+        client.callIASServiceAsync({ sessionid: mySid, serviceid: 'SYSGETUSERINFOLIST', args: 'WSONLIZ', returntype: 'STRING', permanent: false }),
+        10_000, 'startup-SYSGETUSERINFOLIST'
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res0: any = (r as any)?.[0];
+      const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+      if (raw && !raw.startsWith('FL')) {
+        const parsed = JSON.parse(raw);
+        sessions = Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
+        console.log(`[CANIAS] Baslangic: SYSGETUSERINFOLIST ile ${sessions.length} WSONLIZ oturumu bulundu.`);
+      }
+    } catch { /**/ }
+
+    // SYSGETUSERINFOLIST basarisizsa checkProcess'e dus
+    if (!sessions) {
+      try {
+        const r = await withTimeout(
+          client.callIASServiceAsync({ sessionid: mySid, serviceid: 'checkProcess', args: 'WSONLIZ', returntype: 'STRING', permanent: false }),
+          10_000, 'startup-checkProcess'
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const res0: any = (r as any)?.[0];
+        const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+        if (raw && !raw.startsWith('FL')) {
+          const parsed = JSON.parse(raw);
+          sessions = Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
+          console.log(`[CANIAS] Baslangic: checkProcess ile ${sessions.length} WSONLIZ oturumu bulundu.`);
+        }
+      } catch { /**/ }
+    }
+
+    if (!sessions) { console.log('[CANIAS] Baslangic: session listesi alinamadi, zombie temizligi atlandi.'); return; }
+
+    const wsonliz = sessions.filter(s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ'));
     const zombiler = wsonliz.filter(s => !bizimSidler.includes(s.CONNECTIONID));
 
     if (zombiler.length === 0) { console.log('[CANIAS] Baslangic: zombie yok, temiz.'); return; }
