@@ -22,7 +22,7 @@ const REQUEST_TIMEOUT_MS = 60_000;  // 30'dan 60'a çıkarıldı — CANIAS yava
 const SLOT_TIMEOUT_MS    = 120_000; // 30'dan 120'ye çıkarıldı — 200 bayi sıra beklese bile çökme
 const HELPER_IDLE_MS     = 30_000;
 const MAX_SESSIONS       = 4;
-const MAX_RETRY          = 3;
+const MAX_RETRY          = 10;
 
 const SESSION_FILE = path.join(process.cwd(), 'canias_session.txt');
 
