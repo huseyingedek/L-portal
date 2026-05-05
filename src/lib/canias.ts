@@ -17,7 +17,7 @@ const LOGIN_ARGS = {
 const WSDL_TIMEOUT_MS    = 15_000;
 const REQUEST_TIMEOUT_MS = 60_000;
 const SLOT_TIMEOUT_MS    = 60_000;
-const HELPER_IDLE_MS     = 30_000;
+const HELPER_IDLE_MS     = 20_000;
 const MAX_RETRY          = 3;
 
 const SESSION_FILE = path.join(process.cwd(), 'canias_session.txt');
@@ -103,7 +103,7 @@ async function doLoginCall(client: Client, label: string): Promise<string> {
 async function primaryLogin(client: Client, label: string): Promise<string> {
   if (_login0Promise) return _login0Promise;
   _login0Promise = doLoginCall(client, label)
-    .then(sid => { _sid0 = sid; writeSessionFile(sid); return sid; })
+    .then(sid => { _sid0 = sid; writeAllSessionsFile(); return sid; })
     .finally(() => { _login0Promise = null; });
   return _login0Promise;
 }
@@ -129,6 +129,7 @@ async function helperLogin3(client: Client, label: string): Promise<string> {
   return _login3Promise;
 }
 
+
 function startIdleTimer(slot: 1 | 2 | 3, client: Client): void {
   const fire = async (slotNum: 1 | 2 | 3) => {
     const getSid   = (): string  => slotNum === 1 ? _sid1 : slotNum === 2 ? _sid2 : _sid3;
@@ -145,7 +146,7 @@ function startIdleTimer(slot: 1 | 2 | 3, client: Client): void {
     if (!sid || getBusy()) return;
     clearSid();
     writeAllSessionsFile();
-    console.log(`[CANIAS] Yardimci ${slotNum} bosta kaldi (30sn), kapatiliyor: ${sid}`);
+    console.log(`[CANIAS] Yardimci ${slotNum} bosta kaldi (20sn), kapatiliyor: ${sid}`);
     try {
       await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, `idle-logout-${slotNum}`);
       console.log(`[CANIAS] Yardimci ${slotNum} oturum kapatildi.`);
@@ -287,22 +288,43 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
   _cleanupRunning = true;
   _lastCleanup    = now;
   try {
-    const sessions = await fetchSessions(client);
+    // Once SYSGETUSERINFOLIST ile tum WSONLIZ sessionlarini al (checkProcess'in gormedikleri dahil)
+    const sid = _sid0 || _sid1 || _sid2 || _sid3;
+    if (!sid) return;
+    let sessions: SessionRow[] | null = null;
+    try {
+      const r = await withTimeout(
+        client.callIASServiceAsync({ sessionid: sid, serviceid: 'SYSGETUSERINFOLIST', args: 'WSONLIZ', returntype: 'STRING', permanent: false }),
+        10_000, 'SYSGETUSERINFOLIST'
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res0: any = (r as any)?.[0];
+      const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
+      if (raw && !raw.startsWith('FL')) {
+        const parsed = JSON.parse(raw);
+        sessions = Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
+        console.log(`[CANIAS] SYSGETUSERINFOLIST: ${sessions.length} WSONLIZ oturumu bulundu.`);
+      }
+    } catch { /**/ }
+    // SYSGETUSERINFOLIST basarisizsa checkProcess ile dene
+    if (!sessions) sessions = await fetchSessions(client);
     if (!sessions) return;
-    // CANIAS CONNECTIONID kisa format doner: "WSONLIZ_XXX"
-    // _sidN tam format tutar: "WSONLIZ_XXX|base64"
-    // Karsilastirma icin pipe oncesini al
+
     const bizimSidler = [_sid0, _sid1, _sid2, _sid3]
       .filter(Boolean)
       .map(s => s.split('|')[0]);
-    const zombiler = sessions.filter(
-      s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ') && !bizimSidler.includes(s.CONNECTIONID)
-    );
+    // Bizim olmayan VEYA PROCESSTIME=0 olan yabanci sessionlari kapat
+    const zombiler = sessions.filter(s => {
+      if (!s.CONNECTIONID || !s.CONNECTIONID.startsWith('WSONLIZ')) return false;
+      if (bizimSidler.includes(s.CONNECTIONID)) return false; // bizimki, dokunma
+      const processTime = parseInt(s.PROCESSTIME ?? '0', 10);
+      return processTime === 0; // sadece bosta olanlari kapat
+    });
     if (zombiler.length > 0) {
-      console.log(`[CANIAS] Periyodik temizlik: ${zombiler.length} zombie bulundu.`);
+      console.log(`[CANIAS] Periyodik temizlik: ${zombiler.length} zombie (PROCESSTIME=0) kapatiliyor.`);
       for (const s of zombiler) await safeLogout(client, s.CONNECTIONID);
     }
-    if (_sid0) writeSessionFile(_sid0);
+    if (_sid0) writeAllSessionsFile();
   } catch { /**/ }
   finally { _cleanupRunning = false; }
 }
