@@ -276,7 +276,12 @@ async function cleanupZombieSessions(client: Client): Promise<void> {
   try {
     const sessions = await fetchSessions(client);
     if (!sessions) return;
-    const bizimSidler = [_sid0, _sid1, _sid2, _sid3].filter(Boolean);
+    // CANIAS CONNECTIONID kisa format doner: "WSONLIZ_XXX"
+    // _sidN tam format tutar: "WSONLIZ_XXX|base64"
+    // Karsilastirma icin pipe oncesini al
+    const bizimSidler = [_sid0, _sid1, _sid2, _sid3]
+      .filter(Boolean)
+      .map(s => s.split('|')[0]);
     const zombiler = sessions.filter(
       s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ') && !bizimSidler.includes(s.CONNECTIONID)
     );
@@ -336,7 +341,9 @@ async function startupCleanup(): Promise<void> {
     const wsonliz = sessions.filter(s => s.CONNECTIONID && s.CONNECTIONID.startsWith('WSONLIZ'));
     console.log(`[CANIAS] Baslangic: CANIAS'ta ${wsonliz.length} WSONLIZ oturumu bulundu.`);
 
-    const bizimSidler = [_sid0, _sid1, _sid2, _sid3].filter(Boolean);
+    const bizimSidler = [_sid0, _sid1, _sid2, _sid3]
+      .filter(Boolean)
+      .map(s => s.split('|')[0]);
     const zombiler = wsonliz.filter(s => !bizimSidler.includes(s.CONNECTIONID));
 
     if (zombiler.length === 0) { console.log('[CANIAS] Baslangic: zombie yok, temiz.'); return; }
@@ -471,6 +478,7 @@ async function gracefulLogout(): Promise<void> {
       console.log(`[CANIAS] Graceful shutdown: ${sid} kapatildi`);
     } catch { /**/ }
   }
+
   clearSessionFile();
   _sid0 = ''; _sid1 = ''; _sid2 = ''; _sid3 = '';
 }
