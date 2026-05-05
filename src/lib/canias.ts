@@ -258,6 +258,7 @@ async function fetchSessions(client: Client): Promise<SessionRow[] | null> {
     const res0: any = (result as any)?.[0];
     const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
     if (!raw || raw.startsWith('FL')) return null;
+    console.log(`[CANIAS] checkProcess ham yanit: ${raw}`);
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : (Object.values(parsed) as SessionRow[]);
   } catch { return null; }
@@ -470,6 +471,27 @@ export async function callCaniasService(
 
 export const callCaniasServiceWithLogout = callCaniasService;
 
+// Tum WSONLIZ sessionlarini listele (admin icin)
+export async function listCaniasSessions(): Promise<{ sessions: SessionRow[] | null; bizim: string[] }> {
+  const client = await getSoapClient();
+  const sessions = await fetchSessions(client);
+  const bizim = [_sid0, _sid1, _sid2, _sid3].filter(Boolean).map(s => s.split('|')[0]);
+  return { sessions, bizim };
+}
+
+// Belirli bir session'i zorla kapat (zombie temizleme)
+export async function killCaniasSession(sid: string): Promise<boolean> {
+  const client = await getSoapClient();
+  try {
+    await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, 'force-kill');
+    console.log(`[CANIAS] Manuel kill: ${sid}`);
+    return true;
+  } catch {
+    console.log(`[CANIAS] Manuel kill basarisiz: ${sid}`);
+    return false;
+  }
+}
+
 // Her 3 dakikada bir logProcess cagirilir — sunucu durumu PM2 loglarına düşer
 setInterval(async () => {
   try {
@@ -482,19 +504,32 @@ setInterval(async () => {
 
 async function gracefulLogout(): Promise<void> {
   if (!_client) return;
+  console.log('[CANIAS] Graceful shutdown basliyor...');
   if (_timer1) { clearTimeout(_timer1); _timer1 = null; }
   if (_timer2) { clearTimeout(_timer2); _timer2 = null; }
   if (_timer3) { clearTimeout(_timer3); _timer3 = null; }
-  for (const sid of [_sid0, _sid1, _sid2, _sid3].filter(Boolean)) {
+  const sidler = [_sid0, _sid1, _sid2, _sid3].filter(Boolean);
+  // Paralel logout — toplam 3sn icinde bitmeli
+  await Promise.allSettled(sidler.map(async sid => {
     try {
-      await withTimeout(_client.logoutAsync({ sessionid: sid }), 5_000, 'Graceful logout');
+      await withTimeout(_client!.logoutAsync({ sessionid: sid }), 3_000, 'graceful-logout');
       console.log(`[CANIAS] Graceful shutdown: ${sid} kapatildi`);
-    } catch { /**/ }
-  }
-
+    } catch {
+      console.log(`[CANIAS] Graceful shutdown: ${sid} kapatilamadi`);
+    }
+  }));
   clearSessionFile();
   _sid0 = ''; _sid1 = ''; _sid2 = ''; _sid3 = '';
+  console.log('[CANIAS] Graceful shutdown tamamlandi.');
 }
 
-process.once('SIGTERM', async () => { await gracefulLogout(); process.exit(0); });
-process.once('SIGINT',  async () => { await gracefulLogout(); process.exit(0); });
+process.once('SIGTERM', async () => {
+  console.log('[CANIAS] SIGTERM alindi.');
+  await gracefulLogout();
+  process.exit(0);
+});
+process.once('SIGINT', async () => {
+  console.log('[CANIAS] SIGINT alindi.');
+  await gracefulLogout();
+  process.exit(0);
+});
