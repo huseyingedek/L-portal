@@ -439,8 +439,8 @@ export async function callCaniasService(
 
           // Session hatasi: SENKRON logout yap, sonra yeniden login ac
           // ONEMLI: fire-and-forget DEGIL — zombie olusturmaz
+          // Bos FL is mantigi hatasidir, session hatasi degil (ornek: userCheck yanlis sifre)
           const isSessionErr =
-            flBody === '' ||
             flLower.includes('session')  || flLower.includes('oturum') ||
             flLower.includes('login')    || flLower.includes('timeout') ||
             flLower.includes('gecersiz') || flLower.includes('invalid');
