@@ -139,18 +139,34 @@ function startIdleTimer(slot: 1 | 2 | 3, client: Client): void {
       else if (slotNum === 2) _sid2 = '';
       else _sid3 = '';
     };
+    const setSid = (s: string): void => {
+      if (slotNum === 1) _sid1 = s;
+      else if (slotNum === 2) _sid2 = s;
+      else _sid3 = s;
+    };
     if (slotNum === 1) _timer1 = null;
     else if (slotNum === 2) _timer2 = null;
     else _timer3 = null;
     const sid = getSid();
     if (!sid || getBusy()) return;
-    clearSid();
+    clearSid();           // Havuzdan cikar — eslzamanli reuse'u onle
     writeAllSessionsFile();
     console.log(`[CANIAS] Yardimci ${slotNum} bosta kaldi (20sn), kapatiliyor: ${sid}`);
     try {
       await withTimeout(client.logoutAsync({ sessionid: sid }), 5_000, `idle-logout-${slotNum}`);
       console.log(`[CANIAS] Yardimci ${slotNum} oturum kapatildi.`);
-    } catch { /**/ }
+    } catch {
+      // Logout basarisiz (CANIAS yoğun) — slot hala bos ve baska session acilmamissa
+      // session'i geri koy: bir sonraki istek reuse eder, zombie olusturulmaz
+      console.log(`[CANIAS] Yardimci ${slotNum} idle logout basarisiz.`);
+      if (!getBusy() && !getSid()) {
+        setSid(sid);
+        writeAllSessionsFile();
+        console.log(`[CANIAS] Yardimci ${slotNum} session korunuyor (bir sonraki istekte reuse edilecek).`);
+      }
+      // getBusy() ise yeni istek bu slotu kullaniyor; eski session zombie olabilir ama
+      // 2dk'da bir calisacak zombie cleanup (SYSGETUSERINFOLIST) kapatacak.
+    }
   };
   if (slot === 1) { if (_timer1) clearTimeout(_timer1); _timer1 = setTimeout(() => fire(1), HELPER_IDLE_MS); }
   else if (slot === 2) { if (_timer2) clearTimeout(_timer2); _timer2 = setTimeout(() => fire(2), HELPER_IDLE_MS); }
@@ -550,11 +566,20 @@ export async function callCaniasService(
     releaseSlot(slot, client);
   }
 
-  // Tum denemeler basarisiz: session gecersiz sayilir, bir sonraki istek yeniden login acacak
+  // Tum denemeler basarisiz: session'i kapat, zombie olusumunu onle
+  const sidToClose = sidOf(slot);
+  // releaseSlot'un baslattigi idle timer'i iptal et — biz kendimiz kapatacagiz
+  if (slot !== 0) cancelIdleTimer(slot as 1 | 2 | 3);
   if (slot === 0) { _sid0 = ''; clearSessionFile(); }
   else if (slot === 1) _sid1 = '';
   else if (slot === 2) _sid2 = '';
   else _sid3 = '';
+  if (sidToClose) {
+    // Background logout — fire-and-forget, zombie olusumunu onler
+    withTimeout(client.logoutAsync({ sessionid: sidToClose }), 5_000, `maxretry-logout-slot${slot}`)
+      .then(() => console.log(`[CANIAS] Slot ${slot} maxretry logout basarili: ${sidToClose}`))
+      .catch(() => console.log(`[CANIAS] Slot ${slot} maxretry logout basarisiz (zombie cleanup kapatacak).`));
+  }
   return { response: 'Maksimum deneme sayisina ulasildi', status: 'FL' };
 }
 
