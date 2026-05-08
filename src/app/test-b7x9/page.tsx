@@ -146,7 +146,7 @@ export default function BarkodTestPage() {
           </thead>
           <tbody>
             {sonuclar.map((s, i) => (
-              <tr key={s.barkod} style={{ background: i % 2 === 0 ? '#fff' : '#f5f5f5' }}>
+              <tr key={`${s.barkod}-${i}`} style={{ background: i % 2 === 0 ? '#fff' : '#f5f5f5' }}>
                 <td style={td}>{i + 1}</td>
                 <td style={{ ...td, fontWeight: 600 }}>{s.barkod}</td>
                 <td style={{ ...td, fontWeight: 600, color: s.sure !== undefined ? (s.sure > 5 ? '#cc0000' : s.sure > 2 ? '#cc7700' : '#1a7a1a') : '#999' }}>
