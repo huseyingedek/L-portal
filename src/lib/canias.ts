@@ -322,11 +322,11 @@ async function startupCleanup(): Promise<void> {
         const res0: any = (r as any)?.[0];
         const raw = parseRawValue(res0?.callIASServiceReturn ?? res0 ?? '');
         console.log(`[CANIAS][DEBUG] checkSessionId ham yanıt: "${raw}"`);
-        if (!raw.startsWith('FL')) {
+        if (raw && !raw.startsWith('FL')) {
           slots[0].sid = candidateSid;
           console.log(`[CANIAS] Başlangıç: mevcut token canlı → ${candidateSid}`);
         } else {
-          console.log('[CANIAS] Başlangıç: mevcut token ölmüş, yeni login açılıyor.');
+          console.log('[CANIAS] Başlangıç: mevcut token ölmüş veya boş yanıt, yeni login açılıyor.');
         }
       } catch {
         console.log('[CANIAS] Başlangıç: checkSessionId timeout, yeni login açılıyor.');
@@ -467,13 +467,15 @@ export async function callCaniasService(
           // GEÇİCİ LOG — session hata mesajlarını tanımlamak için, sonra kaldır
           console.log(`[CANIAS][FL-DEBUG] fn=${functionName} mesaj="${flBody}"`); 
 
-          // Lisans / max-session hatası: session sağlıklı, bekle ve tekrar dene
+          // Lisans / max-session hatası: zombie session olabilir — temizlik tetikle
           if (
             flLower.includes('lisans') || flLower.includes('license') ||
             flLower.includes('maximum session') || flLower.includes('max session')
           ) {
-            console.log(`[CANIAS] Lisans hatası (slot=${slotNum}, attempt=${attempt}): bekleniyor...`);
-            await new Promise(r => setTimeout(r, 1_000));
+            console.log(`[CANIAS] Lisans hatası (slot=${slotNum}, attempt=${attempt}): zombie temizliği tetikleniyor...`);
+            _lastCleanup = 0; // throttle'ı sıfırla, cleanup zorunlu çalışsın
+            cleanupZombieSessions(client).catch(() => {});
+            await new Promise(r => setTimeout(r, 2_000));
             continue;
           }
 
