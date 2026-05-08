@@ -9,7 +9,7 @@ const LOGIN_ARGS = {
   p_strLanguage:  'T',
   p_strDBName:    'NEW',
   p_strDBServer:  'CANIAS',
-  p_strAppServer: '192.168.1.50:27499',
+  p_strAppServer: '192.168.1.50:27499/p3',
   p_strUserName:  'WSONLIZ',
   p_strPassword:  'Nvf7bM955zge2xgp',
 };

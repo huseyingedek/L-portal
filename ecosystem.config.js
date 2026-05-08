@@ -1,15 +1,15 @@
-// PM2 konfigürasyonu — sunucuda: pm2 start ecosystem.config.js
 module.exports = {
   apps: [
     {
       name:         'lizay-portal',
-      script:       './server.js',                // standalone build çıktısı
-      cwd:          '.next/standalone',           // standalone klasörü
+      script:       './server.js',
+      cwd:          '.next/standalone',
       instances:    1,
+      exec_mode:    'fork',         
       autorestart:  true,
       watch:        false,
       max_memory_restart: '512M',
-      kill_timeout:       8000,
+      kill_timeout:       15000,    
       env: {
         NODE_ENV: 'production',
         PORT:     3100,
