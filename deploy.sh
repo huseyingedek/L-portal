@@ -8,6 +8,14 @@ set -e  # Hata olursa dur
 
 echo "🚀 Lizay Portal Deploy Başlıyor..."
 
+# ── 0. Session dosyasını koru — git pull ezmesin ──────
+SESSION_FILE=".next/standalone/canias_session.txt"
+SESSION_BACKUP="/tmp/canias_session_backup.txt"
+if [ -f "$SESSION_FILE" ]; then
+  cp "$SESSION_FILE" "$SESSION_BACKUP"
+  echo "💾 Session dosyası yedeklendi."
+fi
+
 # ── 1. Bağımlılıklar ──────────────────────────────────
 echo "📦 Bağımlılıklar yükleniyor..."
 npm ci

@@ -179,11 +179,13 @@ function startIdleTimer(slotNum: SlotNum, client: Client): void {
       console.log(`[CANIAS] Yardımcı ${slotNum} oturum kapatıldı.`);
       console.log(`[CANIAS][DEBUG] idle-logout yanıt: ${JSON.stringify(logoutRes)}`);
     } catch {
-      // Logout başarısız — session'ı geri koy, bir sonraki istekte reuse edilir
+      // Logout başarısız — session'ı geri koy ve yeni idle timer başlat
+      // Timer başlatılmazsa session sonsuza kadar açık kalır
       if (!slot.busy && !slot.sid) {
         slot.sid = sid;
         flushSessionFile();
-        console.log(`[CANIAS] Yardımcı ${slotNum} oturum korunuyor (reuse edilecek).`);
+        console.log(`[CANIAS] Yardımcı ${slotNum} idle logout başarısız, 20sn sonra tekrar denenecek.`);
+        startIdleTimer(slotNum, client);
       }
     }
   }, HELPER_IDLE_MS);
