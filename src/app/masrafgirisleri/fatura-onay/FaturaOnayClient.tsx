@@ -47,7 +47,8 @@ export default function FaturaOnayClient() {
 
   async function search() {
     setLoading(true);
-    const payload = { ...filters, exp_date: filters.exp_date.replace(/-/g, '/') };
+    const [y, m, d] = filters.exp_date.split('-');
+    const payload = { ...filters, exp_date: `${y}/${parseInt(m)}/${parseInt(d)}` };
     const res  = await fetch('/api/expenses/shareddoc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     try {
@@ -58,6 +59,7 @@ export default function FaturaOnayClient() {
     setLoading(false);
   }
 
+  // Detail satirlari yukle (orijinal mantik — dokunulmadi)
   async function loadDetail(doc: SharedDoc) {
     const key = doc.SHAREDNUMB;
     if (expanded === key) { setExpanded(null); return; }
@@ -83,9 +85,25 @@ export default function FaturaOnayClient() {
     setRefuseModal({ open: false }); setRefuseReason(''); search();
   }
 
+  // FIX: ana satir Fis — once detail yukle, oradan EXTINVTYPE+EXTINVNUM al
+  // (BELGETIP shareddoc listesinde gelmiyor, bu yuzden orijinal beltip:undefined bozuktu)
   async function showFisDoc(doc: SharedDoc) {
     setFisModal({ open: true, loading: true });
-    const res  = await fetch('/api/expenses/picture-ver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: doc.COMPANY, numm: doc.SHAREDNUMB, beltip: doc.BELGETIP }) });
+    // Detail zaten yukluyse kullan, yoksa cek
+    let items = details[doc.SHAREDNUMB];
+    if (!items) {
+      const res = await fetch('/api/expenses/shareddoc-detail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: filters.exp_comp || '%', bt: doc.BELGETIP, sh: doc.SHAREDNUMB }) });
+      const data = await res.json();
+      try {
+        const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+        const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW;
+        items = Array.isArray(rows) ? rows : rows ? [rows] : [];
+        setDetails(d => ({ ...d, [doc.SHAREDNUMB]: items! }));
+      } catch { items = []; }
+    }
+    if (!items.length) { setFisModal({ open: true, imgSrc: '', loading: false }); return; }
+    const first = items[0];
+    const res  = await fetch('/api/expenses/picture-ver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: doc.COMPANY, numm: first.EXTINVNUM, beltip: first.EXTINVTYPE }) });
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
@@ -95,9 +113,11 @@ export default function FaturaOnayClient() {
     } catch { setFisModal({ open: true, imgSrc: '', loading: false }); }
   }
 
-  async function showFisDetail(d: InvDetail) {
+  // FIX: detail satir Fis — comp olarak parent doc.COMPANY kullan
+  // (InvDetail icinde COMPANY gelmiyor, bu yuzden orijinal comp:'' bozuktu)
+  async function showFisDetail(d: InvDetail, parentComp: string) {
     setFisModal({ open: true, loading: true });
-    const res  = await fetch('/api/expenses/picture-ver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: d.COMPANY || '', numm: d.EXTINVNUM, beltip: d.EXTINVTYPE }) });
+    const res  = await fetch('/api/expenses/picture-ver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: parentComp, numm: d.EXTINVNUM, beltip: d.EXTINVTYPE }) });
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
@@ -113,7 +133,7 @@ export default function FaturaOnayClient() {
   return (
     <>
       <div className="df-page">
-        {/* Filtre — responsive grid */}
+        {/* Filtre */}
         <div className="df-form-grid" style={{ marginBottom: 10 }}>
           <div className="df-field">
             <label className="df-field-lbl">Firma</label>
@@ -128,33 +148,32 @@ export default function FaturaOnayClient() {
             <input className="df-inp" value={filters.exp_docn} onChange={set('exp_docn')} />
           </div>
           <div className="df-field">
-            <label className="df-field-lbl">Statü</label>
+            <label className="df-field-lbl">Statu</label>
             <select className="df-inp" value={filters.exp_stat} onChange={set('exp_stat')}>
-              <option value="0">Onaysız</option><option value="2">Onaylı</option>
-              <option value="1">Red</option><option value="3">Tümü</option>
+              <option value="0">Onaysiz</option><option value="2">Onayli</option>
+              <option value="1">Red</option><option value="3">Tumu</option>
             </select>
           </div>
           <div className="df-field">
-            <label className="df-field-lbl">İşlem Tipi</label>
+            <label className="df-field-lbl">Islem Tipi</label>
             <select className="df-inp" value={filters.exp_islemtp} onChange={set('exp_islemtp')}>
-              <option value="2">Fatura</option><option value="0">Hepsi</option><option value="1">Fiş</option>
+              <option value="2">Fatura</option><option value="0">Hepsi</option><option value="1">Fis</option>
             </select>
           </div>
         </div>
         <div style={{ marginBottom: 16 }}>
           <button className="df-btn-ara" onClick={search} style={{ width: 'auto', minWidth: 80 }}>
-            {loading ? 'Aranıyor...' : 'Ara'}
+            {loading ? 'Araniyor...' : 'Ara'}
           </button>
         </div>
 
-        {/* Sonuç tablosu */}
         <div className="df-table-wrap">
           <table className="df-data-table">
             <thead>
               <tr>
-                <th>Mağaza</th><th>Belge Tip</th><th>Belge No</th>
-                <th>Tarih</th><th>Müşteri No</th><th>Tedarikçi</th>
-                <th>Tutar</th><th>Para Birimi</th><th>Fiş</th><th>Onay</th>
+                <th>Magaza</th><th>Belge Tip</th><th>Belge No</th>
+                <th>Tarih</th><th>Musteri No</th><th>Tedarikci</th>
+                <th>Tutar</th><th>Para Birimi</th><th>Fis</th><th>Onay</th>
               </tr>
             </thead>
             <tbody>
@@ -174,9 +193,9 @@ export default function FaturaOnayClient() {
                     </td>
                     <td>{doc.DOCDATE}</td><td>{doc.VENDOR}</td><td>{doc.NAME1}</td>
                     <td>{doc.NETAMOUNT}</td><td>{doc.CURRENCY}</td>
-                    <td><button className="df-btn-fis" onClick={() => showFisDoc(doc)}>Fiş</button></td>
+                    <td><button className="df-btn-fis" onClick={() => showFisDoc(doc)}>Fis</button></td>
                     <td>
-                      {doc.STATUS === '2' ? <span className="df-badge-onay">Onaylı</span>
+                      {doc.STATUS === '2' ? <span className="df-badge-onay">Onayli</span>
                         : doc.STATUS === '0' ? <button className="df-btn-onay" onClick={() => confirmDoc(doc)}>Onay</button>
                         : null}
                     </td>
@@ -186,17 +205,17 @@ export default function FaturaOnayClient() {
                       <td colSpan={10} style={{ padding: 0 }}>
                         <table className="df-data-table df-child-table">
                           <thead>
-                            <tr><th>Mağaza</th><th>Fat.Seri</th><th>Fat.No</th><th>Tutar</th><th>Tarih</th><th>Açıklama</th><th>Gider Açk.</th><th>Fiş</th></tr>
+                            <tr><th>Magaza</th><th>Fat.Seri</th><th>Fat.No</th><th>Tutar</th><th>Tarih</th><th>Aciklama</th><th>Gider Ack.</th><th>Fis</th></tr>
                           </thead>
                           <tbody>
                             {(details[doc.SHAREDNUMB] || []).map((d, j) => (
                               <tr key={j}>
                                 <td>{d.CLIENT}</td><td>{d.EXTINVTYPE}</td><td>{d.EXTINVNUM}</td>
                                 <td>{d.NETAMOUNT}</td><td>{d.DOCDATE}</td><td>{d.LTEXT}</td><td>{d.COSTX}</td>
-                                <td><button className="df-btn-fis" onClick={() => showFisDetail(d)}>Fiş</button></td>
+                                <td><button className="df-btn-fis" onClick={() => showFisDetail(d, doc.COMPANY)}>Fis</button></td>
                               </tr>
                             ))}
-                            {!(details[doc.SHAREDNUMB] || []).length && <tr><td colSpan={8} style={{ textAlign: 'center' }}>Kayıt yok</td></tr>}
+                            {!(details[doc.SHAREDNUMB] || []).length && <tr><td colSpan={8} style={{ textAlign: 'center' }}>Kayit yok</td></tr>}
                           </tbody>
                         </table>
                       </td>
@@ -204,35 +223,33 @@ export default function FaturaOnayClient() {
                   )}
                 </Fragment>
               ))}
-              {!docs.length && !loading && <tr><td colSpan={10} style={{ textAlign: 'center', padding: 20 }}>Arama yapın</td></tr>}
+              {!docs.length && !loading && <tr><td colSpan={10} style={{ textAlign: 'center', padding: 20 }}>Arama yapin</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Red Modal */}
       {refuseModal.open && (
         <div className="df-modal-overlay">
           <div className="df-modal-box">
-            <h5>Red Sebep Girişi</h5>
-            <p>Lütfen Red Sebebini Giriniz.</p>
+            <h5>Red Sebep Girisi</h5>
+            <p>Lutfen Red Sebebini Giriniz.</p>
             <textarea className="df-inp" rows={4} value={refuseReason} onChange={e => setRefuseReason(e.target.value)} />
             <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
               <button className="df-btn-red" onClick={refuseDoc}>Kaydet</button>
-              <button className="df-btn-kapat" onClick={() => setRefuseModal({ open: false })}>İptal</button>
+              <button className="df-btn-kapat" onClick={() => setRefuseModal({ open: false })}>Iptal</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Fiş Modal */}
       {fisModal.open && (
         <div className="df-modal-overlay" onClick={() => setFisModal({ open: false })}>
           <div className="df-modal-box" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
-            <h5>Fiş Görüntüle</h5>
-            {fisModal.loading ? <p>Yükleniyor...</p>
-              : fisModal.imgSrc ? <img src={fisModal.imgSrc} alt="Fiş" className="df-modal-img" />
-              : <p>Görsel bulunamadı.</p>}
+            <h5>Fis Goruntule</h5>
+            {fisModal.loading ? <p>Yukleniyor...</p>
+              : fisModal.imgSrc ? <img src={fisModal.imgSrc} alt="Fis" className="df-modal-img" />
+              : <p>Gorsel bulunamadi.</p>}
             <button className="df-btn-kapat" onClick={() => setFisModal({ open: false })}>Kapat</button>
           </div>
         </div>

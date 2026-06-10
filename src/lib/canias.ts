@@ -469,15 +469,44 @@ export async function callCaniasService(
           // GEÇİCİ LOG — session hata mesajlarını tanımlamak için, sonra kaldır
           console.log(`[CANIAS][FL-DEBUG] fn=${functionName} mesaj="${flBody}"`); 
 
-          // Lisans / max-session hatası: zombie session olabilir — temizlik tetikle
+          // Lisans / max-session hatası: zombie session olabilir — mevcut session ile direkt temizle
+          // cleanupZombieSessions boş slot arar ama tüm slotlar meşgulse bulamaz — kısır döngü olur.
+          // Bu yüzden mevcut isteğin session'ını direkt kullanarak checkProcess sorguluyoruz.
           if (
             flLower.includes('lisans') || flLower.includes('license') ||
             flLower.includes('maximum session') || flLower.includes('max session')
           ) {
-            console.log(`[CANIAS] Lisans hatası (slot=${slotNum}, attempt=${attempt}): zombie temizliği tetikleniyor...`);
-            _lastCleanup = 0; // throttle'ı sıfırla, cleanup zorunlu çalışsın
-            cleanupZombieSessions(client).catch(() => {});
-            await new Promise(r => setTimeout(r, 2_000));
+            console.log(`[CANIAS] Lisans hatası (slot=${slotNum}, attempt=${attempt}): mevcut session ile zombie temizliği...`);
+            try {
+              const cpResult = await withTimeout(
+                client.callIASServiceAsync({ sessionid: sessionId, serviceid: 'checkProcess', args: 'WSONLIZ', returntype: 'STRING', permanent: false }),
+                10_000, 'license-checkProcess'
+              );
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const cpRes0: any = (cpResult as any)?.[0];
+              const cpRaw = parseRawValue(cpRes0?.callIASServiceReturn ?? cpRes0 ?? '');
+              console.log(`[CANIAS][DEBUG] lisans-checkProcess yanıt: ${cpRaw}`);
+              if (cpRaw && !cpRaw.startsWith('FL')) {
+                const cpParsed = JSON.parse(cpRaw);
+                const cpSessions: SessionRow[] = Array.isArray(cpParsed) ? cpParsed : Object.values(cpParsed);
+                const bizimSidler = getAllSids().map(s => s.split('|')[0]);
+                const zombiler = cpSessions.filter(s =>
+                  s.CONNECTIONID?.startsWith('WSONLIZ') &&
+                  !bizimSidler.includes(s.CONNECTIONID) &&
+                  parseInt(s.PROCESSTIME ?? '0', 10) === 0
+                );
+                if (zombiler.length > 0) {
+                  console.log(`[CANIAS] Lisans temizliği: ${zombiler.length} zombie kapatılıyor...`);
+                  for (const z of zombiler) {
+                    try {
+                      await withTimeout(client.logoutAsync({ sessionid: z.CONNECTIONID }), 5_000, 'license-zombie-logout');
+                      console.log(`[CANIAS] Lisans temizliği: zombie kapatıldı → ${z.CONNECTIONID}`);
+                    } catch { /**/ }
+                  }
+                }
+              }
+            } catch { /**/ }
+            await new Promise(r => setTimeout(r, 1_000));
             continue;
           }
 

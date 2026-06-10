@@ -10,12 +10,13 @@ export async function POST(req: NextRequest) {
   if (session.login !== 1) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
 
   const body = await req.json();
-  const comp     = body.exp_comp  || '%';
-  const datt     = body.exp_date  || '';
-  const docn     = body.exp_docn  || '%';
-  const stat     = body.exp_stat  || '';
-  const islemtp  = body.exp_islemtp || '';
+  const comp    = body.exp_comp   || '%';
+  const datt    = body.exp_date   || '';
+  const docn    = body.exp_docn   || '%';
+  const stat    = body.exp_stat   || '';
+  const islemtp = body.exp_islemtp || '';
 
   const result = await callCaniasService('consSharedocList', [comp, datt, docn, stat, islemtp]);
+  console.log('[shareddoc] Canias yanit (ilk 600 char):', String(result.response).substring(0, 600));
   return NextResponse.json({ data: result.response, status: result.status });
 }

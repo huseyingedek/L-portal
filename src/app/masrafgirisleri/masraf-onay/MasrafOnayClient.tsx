@@ -2,6 +2,27 @@
 
 import { useState } from 'react';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractPictureRow(parsed: any): any {
+  if (Array.isArray(parsed)) return parsed[0] ?? null;
+  if (parsed?.Records?.ROW) {
+    const r = parsed.Records.ROW;
+    return Array.isArray(r) ? r[0] : r;
+  }
+  if (parsed?.ROW) {
+    const r = parsed.ROW;
+    return Array.isArray(r) ? r[0] : r;
+  }
+  return parsed ?? null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildImgSrc(row: any): string {
+  const raw: string = row?.PICTURE || row?.IMST || '';
+  if (!raw || typeof raw !== 'string' || raw.length < 10) return '';
+  return `data:image/png;base64,${raw.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')}`;
+}
+
 interface Expense {
   CLIENT: string; EXTINVTYPE: string; EXTINVNUM: string;
   GROSSAMOUNT: string; CURRENCY: string; DOCDATE: string;
@@ -16,10 +37,12 @@ export default function MasrafOnayClient() {
   const [loading, setLoading]     = useState(false);
   const [refuseModal, setRefuseModal] = useState<{ open: boolean; row?: Expense }>({ open: false });
   const [refuseReason, setRefuseReason] = useState('');
+  const [fisModal, setFisModal] = useState<{ open: boolean; imgSrc?: string; loading?: boolean }>({ open: false });
 
   async function search() {
     setLoading(true);
-    const payload = { ...filters, exp_date: filters.exp_date.replace(/-/g, '/') };
+    const [y, m, d] = filters.exp_date.split('-');
+    const payload = { ...filters, exp_date: `${y}/${parseInt(m)}/${parseInt(d)}` };
     const res  = await fetch('/api/expenses/list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     try {
@@ -41,13 +64,24 @@ export default function MasrafOnayClient() {
     setRefuseModal({ open: false }); setRefuseReason(''); search();
   }
 
+  async function showFis(row: Expense) {
+    setFisModal({ open: true, loading: true });
+    const res  = await fetch('/api/expenses/picture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: row.COMPANY, typp: row.EXTINVTYPE, numm: row.EXTINVNUM }) });
+    const data = await res.json();
+    try {
+      const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+      const row0 = extractPictureRow(parsed);
+      const imgSrc = buildImgSrc(row0);
+      setFisModal({ open: true, imgSrc, loading: false });
+    } catch { setFisModal({ open: true, imgSrc: '', loading: false }); }
+  }
+
   const set = (k: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setFilters(f => ({ ...f, [k]: e.target.value }));
 
   return (
     <>
       <div className="df-page">
-        {/* Filtre — responsive grid */}
         <div className="df-form-grid" style={{ marginBottom: 10 }}>
           <div className="df-field">
             <label className="df-field-lbl">Firma</label>
@@ -64,14 +98,18 @@ export default function MasrafOnayClient() {
           <div className="df-field">
             <label className="df-field-lbl">Statü</label>
             <select className="df-inp" value={filters.exp_stat} onChange={set('exp_stat')}>
-              <option value="0">Onaysız</option><option value="2">Onaylı</option>
-              <option value="1">Red</option><option value="3">Tümü</option>
+              <option value="0">Onaysız</option>
+              <option value="2">Onaylı</option>
+              <option value="1">Red</option>
+              <option value="3">Tümü</option>
             </select>
           </div>
           <div className="df-field">
             <label className="df-field-lbl">İşlem Tipi</label>
             <select className="df-inp" value={filters.exp_islemtp} onChange={set('exp_islemtp')}>
-              <option value="0">Hepsi</option><option value="2">Fatura</option><option value="1">Fiş</option>
+              <option value="0">Hepsi</option>
+              <option value="2">Fatura</option>
+              <option value="1">Fiş</option>
             </select>
           </div>
         </div>
@@ -81,41 +119,63 @@ export default function MasrafOnayClient() {
           </button>
         </div>
 
-        {/* Sonuç tablosu */}
         <div className="df-table-wrap">
           <table className="df-data-table">
             <thead>
               <tr>
-                <th>Mağaza</th><th>Fat.Seri</th><th>Fat.No</th><th>Tutar</th>
-                <th>P.Birimi</th><th>Tarih</th><th>Açıklama</th><th>Gider Açk.</th>
-                <th>Onay</th><th>Red</th>
+                <th>Mağaza</th>
+                <th>Fat.Seri</th>
+                <th>Fat.No</th>
+                <th>Tutar</th>
+                <th>P.Birimi</th>
+                <th>Tarih</th>
+                <th>Açıklama</th>
+                <th>Gider Açk.</th>
+                <th>Fiş</th>
+                <th>Onay</th>
+                <th>Red</th>
               </tr>
             </thead>
             <tbody>
               {expenses.map((row, i) => (
                 <tr key={i}>
-                  <td>{row.CLIENT}</td><td>{row.EXTINVTYPE}</td><td>{row.EXTINVNUM}</td>
-                  <td>{row.GROSSAMOUNT}</td><td>{row.CURRENCY}</td><td>{row.DOCDATE}</td>
-                  <td>{row.LTEXT}</td><td>{row.COSTX}</td>
+                  <td>{row.CLIENT}</td>
+                  <td>{row.EXTINVTYPE}</td>
+                  <td>{row.EXTINVNUM}</td>
+                  <td>{row.GROSSAMOUNT}</td>
+                  <td>{row.CURRENCY}</td>
+                  <td>{row.DOCDATE}</td>
+                  <td>{row.LTEXT}</td>
+                  <td>{row.COSTX}</td>
                   <td>
-                    {row.STATUS === '2' ? <span className="df-badge-onay">Onaylı</span>
-                      : row.STATUS === '0' ? <button className="df-btn-onay" onClick={() => confirm(row)}>Onay</button>
+                    <button className="df-btn-fis" onClick={() => showFis(row)}>Fiş</button>
+                  </td>
+                  <td>
+                    {row.STATUS === '2'
+                      ? <span className="df-badge-onay">Onaylı</span>
+                      : row.STATUS === '0'
+                      ? <button className="df-btn-onay" onClick={() => confirm(row)}>Onay</button>
                       : null}
                   </td>
                   <td>
-                    {row.STATUS === '1' ? <span className="df-badge-red">Red</span>
-                      : row.STATUS === '0' ? <button className="df-btn-red" onClick={() => setRefuseModal({ open: true, row })}>Red</button>
+                    {row.STATUS === '1'
+                      ? <span className="df-badge-red">Red</span>
+                      : row.STATUS === '0'
+                      ? <button className="df-btn-red" onClick={() => setRefuseModal({ open: true, row })}>Red</button>
                       : null}
                   </td>
                 </tr>
               ))}
-              {!expenses.length && !loading && <tr><td colSpan={10} style={{ textAlign: 'center', padding: 20 }}>Arama yapın</td></tr>}
+              {!expenses.length && !loading && (
+                <tr>
+                  <td colSpan={11} style={{ textAlign: 'center', padding: 20 }}>Arama yapın</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Red Modal */}
       {refuseModal.open && (
         <div className="df-modal-overlay">
           <div className="df-modal-box">
@@ -126,6 +186,21 @@ export default function MasrafOnayClient() {
               <button className="df-btn-red" onClick={refuse}>Kaydet</button>
               <button className="df-btn-kapat" onClick={() => setRefuseModal({ open: false })}>İptal</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {fisModal.open && (
+        <div className="df-modal-overlay" onClick={() => setFisModal({ open: false })}>
+          <div className="df-modal-box" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
+            <h5>Fiş Görüntüle</h5>
+            {fisModal.loading
+              ? <p>Yükleniyor...</p>
+              : fisModal.imgSrc
+              ? <img src={fisModal.imgSrc} alt="Fiş" className="df-modal-img" />
+              : <p>Görsel bulunamadı.</p>}
+            <button className="df-btn-kapat" onClick={() => setFisModal({ open: false })}>Kapat</button>
+            <button className="df-btn-kapat" onClick={() => setFisModal({ open: false })}>Kapat</button>
           </div>
         </div>
       )}

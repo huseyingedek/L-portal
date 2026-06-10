@@ -10,7 +10,9 @@ export async function POST(req: NextRequest) {
   if (session.login !== 1) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
 
   const body = await req.json();
-  // PHP: consExpensesPictVER(comp, numm, beltip)
+  console.log('[picture-ver] istek:', { comp: body.comp, numm: body.numm, beltip: body.beltip });
   const result = await callCaniasService('consExpensesPictVER', [body.comp || '', body.numm || '', body.beltip || '']);
+  console.log('[picture-ver] Canias status:', result.status);
+  console.log('[picture-ver] Canias yanit (ilk 300 char):', String(result.response).substring(0, 300));
   return NextResponse.json({ data: result.response, status: result.status });
 }

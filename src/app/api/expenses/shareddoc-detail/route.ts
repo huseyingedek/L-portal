@@ -11,5 +11,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const result = await callCaniasService('consExpensesListinvSH', [body.comp || '%', body.bt || '', body.sh || '']);
+  console.log('[shareddoc-detail] istek:', { comp: body.comp, bt: body.bt, sh: body.sh });
+  console.log('[shareddoc-detail] yanit (ilk 400 char):', String(result.response).substring(0, 400));
   return NextResponse.json({ data: result.response, status: result.status });
 }
