@@ -2,25 +2,49 @@
 
 import { Fragment, useState } from 'react';
 
-// CANIAS picture response can come as: flat array, Records.ROW, or ROW at root
+// CANIAS picture response can come as: flat array, Records.ROW, ROW at root, or multiple image fields
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractPictureRow(parsed: any): any {
-  if (Array.isArray(parsed)) return parsed[0] ?? null;
+function extractPictureRows(parsed: any): any[] {
+  if (!parsed) return [];
+  if (Array.isArray(parsed)) return parsed;
   if (parsed?.Records?.ROW) {
     const r = parsed.Records.ROW;
-    return Array.isArray(r) ? r[0] : r;
+    return Array.isArray(r) ? r : [r];
   }
   if (parsed?.ROW) {
     const r = parsed.ROW;
-    return Array.isArray(r) ? r[0] : r;
+    return Array.isArray(r) ? r : [r];
   }
-  return parsed ?? null;
+  return typeof parsed === 'object' ? [parsed] : [];
 }
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildImgSrc(row: any): string {
-  const raw: string = row?.PICTURE || row?.IMST || '';
-  if (!raw || typeof raw !== 'string' || raw.length < 10) return '';
-  return `data:image/png;base64,${raw.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')}`;
+function extractRawImages(raw: any): string[] {
+  if (raw == null) return [];
+  if (typeof raw === 'string') return [raw];
+  if (Array.isArray(raw)) return raw.flatMap(item => extractRawImages(item));
+  if (typeof raw === 'object') {
+    if ('$value' in raw && typeof raw.$value === 'string') return [raw.$value];
+    return [];
+  }
+  return [];
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildImgSrc(raw: any): string {
+  const values = extractRawImages(raw);
+  const first = values.find(v => typeof v === 'string' && v.length >= 10);
+  if (!first) return '';
+  return `data:image/png;base64,${first.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')}`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getPictureSrcs(parsed: any): string[] {
+  const rows = extractPictureRows(parsed);
+  return rows.flatMap(row => {
+    const sources = [row?.PICTURE, row?.IMST, row?.IMSTBT, row?.IMGBASE64];
+    return sources.flatMap(src => extractRawImages(src)).map(raw => raw.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')).filter((raw: any) => typeof raw === 'string' && raw.length >= 10).map((raw: string) => `data:image/png;base64,${raw}`);
+  });
 }
 
 interface SharedDoc {
@@ -43,7 +67,7 @@ export default function FaturaOnayClient() {
   const [details, setDetails]   = useState<Record<string, InvDetail[]>>({});
   const [refuseModal, setRefuseModal] = useState<{ open: boolean; doc?: SharedDoc }>({ open: false });
   const [refuseReason, setRefuseReason] = useState('');
-  const [fisModal, setFisModal] = useState<{ open: boolean; imgSrc?: string; loading?: boolean }>({ open: false });
+  const [fisModal, setFisModal] = useState<{ open: boolean; imgSrcs?: string[]; activeIndex?: number; loading?: boolean }>({ open: false });
 
   async function search() {
     setLoading(true);
@@ -101,16 +125,15 @@ export default function FaturaOnayClient() {
         setDetails(d => ({ ...d, [doc.SHAREDNUMB]: items! }));
       } catch { items = []; }
     }
-    if (!items.length) { setFisModal({ open: true, imgSrc: '', loading: false }); return; }
+    if (!items.length) { setFisModal({ open: true, imgSrcs: [], activeIndex: 0, loading: false }); return; }
     const first = items[0];
     const res  = await fetch('/api/expenses/picture-ver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp: doc.COMPANY, numm: first.EXTINVNUM, beltip: first.EXTINVTYPE }) });
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-      const row0 = extractPictureRow(parsed);
-      const imgSrc = buildImgSrc(row0);
-      setFisModal({ open: true, imgSrc, loading: false });
-    } catch { setFisModal({ open: true, imgSrc: '', loading: false }); }
+      const imgSrcs = getPictureSrcs(parsed);
+      setFisModal({ open: true, imgSrcs, activeIndex: 0, loading: false });
+    } catch { setFisModal({ open: true, imgSrcs: [], activeIndex: 0, loading: false }); }
   }
 
   // FIX: detail satir Fis — comp olarak parent doc.COMPANY kullan
@@ -121,10 +144,9 @@ export default function FaturaOnayClient() {
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-      const row0 = extractPictureRow(parsed);
-      const imgSrc = buildImgSrc(row0);
-      setFisModal({ open: true, imgSrc, loading: false });
-    } catch { setFisModal({ open: true, imgSrc: '', loading: false }); }
+      const imgSrcs = getPictureSrcs(parsed);
+      setFisModal({ open: true, imgSrcs, activeIndex: 0, loading: false });
+    } catch { setFisModal({ open: true, imgSrcs: [], activeIndex: 0, loading: false }); }
   }
 
   const set = (k: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -248,8 +270,25 @@ export default function FaturaOnayClient() {
           <div className="df-modal-box" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
             <h5>Fis Goruntule</h5>
             {fisModal.loading ? <p>Yukleniyor...</p>
-              : fisModal.imgSrc ? <img src={fisModal.imgSrc} alt="Fis" className="df-modal-img" />
-              : <p>Gorsel bulunamadi.</p>}
+              : fisModal.imgSrcs && fisModal.imgSrcs.length > 0 ? (
+                <>
+                  <img src={fisModal.imgSrcs[fisModal.activeIndex ?? 0]} alt={`Fis ${fisModal.activeIndex! + 1}`} className="df-modal-img" />
+                  {fisModal.imgSrcs.length > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                      {fisModal.imgSrcs.map((_, index) => (
+                        <button
+                          key={index}
+                          className={`df-btn-kapak ${index === fisModal.activeIndex ? 'active' : ''}`}
+                          style={{ padding: '6px 10px', fontSize: 12 }}
+                          onClick={() => setFisModal(f => ({ ...f, activeIndex: index }))}
+                        >
+                          {index + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : <p>Gorsel bulunamadi.</p>}
             <button className="df-btn-kapat" onClick={() => setFisModal({ open: false })}>Kapat</button>
           </div>
         </div>

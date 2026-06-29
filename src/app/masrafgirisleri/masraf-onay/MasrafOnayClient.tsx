@@ -200,7 +200,6 @@ export default function MasrafOnayClient() {
               ? <img src={fisModal.imgSrc} alt="Fiş" className="df-modal-img" />
               : <p>Görsel bulunamadı.</p>}
             <button className="df-btn-kapat" onClick={() => setFisModal({ open: false })}>Kapat</button>
-            <button className="df-btn-kapat" onClick={() => setFisModal({ open: false })}>Kapat</button>
           </div>
         </div>
       )}
