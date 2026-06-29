@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
 
     const result = await callCaniasService('userCheck', [username, password]);
 
+    // GEÇİCİ TEŞHİS LOGU — userCheck'in doğru/yanlış şifrede döndürdüğü yanıtı yakalamak için.
+    // Şifre BİLEREK loglanmıyor. Format netleşince bu satır kaldırılacak.
+    console.log(`[LOGIN-DEBUG] user="${username}" status=${result.status} response=${JSON.stringify(result.response)}`);
+
     if (result.status === 'FL') {
       // Bağlantı hatası mı yoksa yanlış şifre mi ayırt et
       const isBaglantiHatasi = result.response.includes('Bağlantı') || result.response.includes('timeout') || result.response.includes('WSDL');
