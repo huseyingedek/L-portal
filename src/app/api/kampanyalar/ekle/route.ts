@@ -4,8 +4,6 @@ import { cookies } from 'next/headers';
 import { sessionOptions, SessionData } from '@/lib/session';
 import db from '@/lib/db';
 
-const EDIT_USERS = ['CICIGEN', 'BTEMUR', 'EALPER', 'SGENC'];
-
 function dosyaAdiOlustur(baslik: string): string {
   return baslik
     .replace(/[ÇçĞğIıİiÖöŞşÜü]/g, (c) =>
@@ -20,7 +18,6 @@ export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
   const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
   if (session.login !== 1) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
-  if (!EDIT_USERS.includes(session.usern)) return NextResponse.json({ error: 'Bu işlem için yetkiniz yok' }, { status: 403 });
 
   const body = await req.json();
   const { kampanya_icerik, kampanya_gorsel_baslik, kampanya_baslik } = body;

@@ -13,31 +13,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Kullanıcı adı ve şifre gerekli' }, { status: 400 });
     }
 
-    // ─── TEST MODU: Canias erişimi olmayan ortamlarda test için ───
-    // Production'a geçmeden önce bu bloğu sil ve alttaki satırı aç
-    const TEST_MODE = process.env.TEST_MODE === 'true';
-    if (TEST_MODE) {
-      if (username === 'TEST' && password === 'TEST123') {
-        const cookieStore = await cookies();
-        const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
-        session.login = 1;
-        session.usern = 'TESTUSER';
-        await session.save();
-        return NextResponse.json({ success: true, usern: session.usern });
-      }
-      return NextResponse.json({ error: 'Test modunda yanlış şifre' }, { status: 401 });
-    }
-    // ─────────────────────────────────────────────────────────────
-
     const result = await callCaniasService('userCheck', [username, password]);
 
-    // GEÇİCİ TEŞHİS LOGU — userCheck'in doğru/yanlış şifrede döndürdüğü yanıtı yakalamak için.
-    // Şifre BİLEREK loglanmıyor. Format netleşince bu satır kaldırılacak.
+    // GECICI TESHIS LOGU -- userCheck yanitini izlemek icin. Dogrulandiktan sonra kaldirilacak.
+    // Sifre BILEREK loglanmiyor.
     console.log(`[LOGIN-DEBUG] user="${username}" status=${result.status} response=${JSON.stringify(result.response)}`);
 
-    if (result.status === 'FL') {
-      // Bağlantı hatası mı yoksa yanlış şifre mi ayırt et
-      const isBaglantiHatasi = result.response.includes('Bağlantı') || result.response.includes('timeout') || result.response.includes('WSDL');
+    // --- FAIL-CLOSED ---
+    // Giris SADECE userCheck birebir "OK" donerse acilir.
+    // "FL degilse OK say" mantigi kaldirildi: bos/anlamsiz/yanlis her yanit elenir.
+    const dogrulandi = result.status === 'OK' && result.response.trim().toUpperCase() === 'OK';
+
+    if (!dogrulandi) {
+      // Sunucu/baglanti hatasi mi (canias 'Baglanti hatasi' / timeout / WSDL doner),
+      // yoksa yanlis kimlik bilgisi mi ayir
+      const isBaglantiHatasi =
+        result.response.includes('Baglanti') ||
+        result.response.includes('timeout')  ||
+        result.response.includes('WSDL');
       if (isBaglantiHatasi) {
         return NextResponse.json({ error: 'Sunucu bağlantısı kurulamadı, lütfen tekrar deneyin.' }, { status: 503 });
       }
@@ -52,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, usern: session.usern });
   } catch (err) {
-    console.error('Login hatası:', err);
+    console.error('Login hatasi:', err);
     return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 });
   }
 }

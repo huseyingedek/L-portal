@@ -42,22 +42,15 @@ export default async function DashboardPage() {
 
   // Paralel sorgular
   const [
-    bilgilendirmeCount,
     prosedurCount,
     kampanyaCount,
     ikCount,
-    sonBilgilendirmeler,
     sonKampanyalar,
     sonIK,
   ] = await Promise.all([
-    safeCount('SELECT COUNT(*) as total FROM BILGILENDIRMELER'),
     safeCount('SELECT COUNT(*) as total FROM PROSEDURLER'),
     safeCount('SELECT COUNT(*) as total FROM KAMPANYALAR'),
     safeCount("SELECT COUNT(*) as total FROM KAYITLAR"),
-    safeRows<DuyuruRow>(
-      'SELECT bilgilendirme_baslik as baslik, bilgilendirme_gorsel_baslik as gorsel_baslik, bilgilendirme_dosya_adi as dosya_adi, bilgilendirme_tarih as tarih FROM BILGILENDIRMELER ORDER BY bilgilendirme_tarih DESC',
-      5
-    ),
     safeRows<DuyuruRow>(
       'SELECT kampanya_baslik as baslik, kampanya_gorsel_baslik as gorsel_baslik, kampanya_dosya_adi as dosya_adi, kampanya_tarih as tarih FROM KAMPANYALAR ORDER BY kampanya_tarih DESC',
       3
@@ -73,8 +66,7 @@ export default async function DashboardPage() {
       <DashboardClient
         usern={session.usern}
         isStoreUser={isStoreUser}
-        stats={{ bilgilendirme: bilgilendirmeCount, prosedur: prosedurCount, kampanya: kampanyaCount, ik: ikCount }}
-        sonBilgilendirmeler={sonBilgilendirmeler}
+        stats={{ prosedur: prosedurCount, kampanya: kampanyaCount, ik: ikCount }}
         sonKampanyalar={sonKampanyalar}
         sonIK={sonIK}
       />

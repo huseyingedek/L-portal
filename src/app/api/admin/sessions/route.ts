@@ -1,18 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { listCaniasSessions, killCaniasSession } from '@/lib/canias';
+import { NextResponse } from 'next/server';
 
-// Gecici endpoint: CANIAS session listesi ve zombie temizleme
-// Kullanim: GET  /api/admin/sessions          → tum sessionlari listele
-//           DELETE /api/admin/sessions?sid=XX  → belirli session'i kapat
+// Bu endpoint kaldırıldı.
+// Eski çoklu-oturum (slot havuzu / zombie temizleme) modeli kaldırıldığı için
+// listCaniasSessions / killCaniasSession fonksiyonları artık yok.
+// Yetkisiz erişime açık olduğu için de tamamen devre dışı bırakıldı.
 
 export async function GET() {
-  const data = await listCaniasSessions();
-  return NextResponse.json(data);
+  return NextResponse.json({ error: 'Bu endpoint kaldırıldı.' }, { status: 404 });
 }
 
-export async function DELETE(req: NextRequest) {
-  const sid = req.nextUrl.searchParams.get('sid');
-  if (!sid) return NextResponse.json({ error: 'sid parametresi gerekli' }, { status: 400 });
-  const ok = await killCaniasSession(sid);
-  return NextResponse.json({ ok, sid });
+export async function DELETE() {
+  return NextResponse.json({ error: 'Bu endpoint kaldırıldı.' }, { status: 404 });
 }

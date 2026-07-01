@@ -48,7 +48,7 @@ const NAV: NavItem[] = [
     ],
   },
   { label: 'Prosedürler',          icon: 'fa-solid fa-book-open',      href: '/prosedurler' },
-  { label: 'Bilgilendirme',        icon: 'fa-solid fa-bell',           href: '/bilgilendirme' },
+  { label: 'Anlaşmalı Kurumlar',   icon: 'fa-solid fa-handshake',      href: '/calisankampanyalari' },
   {
     label: 'İnsan Kaynakları',      icon: 'fa-solid fa-users',
     children: [
@@ -71,8 +71,6 @@ const ACCENT = '#d63050';
 const W_FULL = 240;
 const W_SLIM = 58;
 
-// PHP: calisankampanyalari/index.php → sadece bu kullanıcılar sidebar'da görür
-const KAMPANYA_USERS = ['CICIGEN', 'BTEMUR', 'EALPER', 'SGENC'];
 
 interface Props {
   usern?: string;
@@ -85,9 +83,7 @@ interface Props {
 export default function Sidebar({ usern, collapsed, isMobile, mobileOpen, onMobileClose }: Props) {
   const pathname = usePathname();
 
-  const nav = KAMPANYA_USERS.includes(usern || '')
-    ? [...NAV.slice(0, 6), { label: 'Çalışan Kampanyaları', icon: 'fa-solid fa-tag', href: '/calisankampanyalari' }, ...NAV.slice(6)]
-    : NAV;
+  const nav = NAV;
 
   function hasActiveChild(item: NavItem): boolean {
     return item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + '/')) ?? false;

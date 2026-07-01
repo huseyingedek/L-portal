@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Eski CANIAS oturum dosyasi (artik kullanilmiyor)
+canias_session.txt

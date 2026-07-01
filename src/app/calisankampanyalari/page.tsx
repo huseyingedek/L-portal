@@ -19,7 +19,6 @@ interface Kampanya {
   kampanya_dosya_adi: string;
 }
 
-const EDIT_USERS = ['CICIGEN', 'BTEMUR', 'EALPER', 'SGENC'];
 
 export default async function CalisanKampanyalariPage() {
   const cookieStore = await cookies();
@@ -35,20 +34,20 @@ export default async function CalisanKampanyalariPage() {
     rows = result;
   } catch { dbError = true; }
 
-  const canEdit = EDIT_USERS.includes(session.usern);
+  const canEdit = true;
 
   return (
     <PageShell usern={session.usern}>
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Çalışan Kampanyaları</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Anlaşmalı Kurumlar</h1>
           {canEdit && (
             <Link href="/calisankampanyalari/ekle" style={{
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
               padding: '6px 14px', borderRadius: 8, color: 'white',
               backgroundColor: 'var(--color-primary, #d63050)',
             }}>
-              <i className="fas fa-plus" style={{ fontSize: 10 }} /> Kampanya Ekle
+              <i className="fas fa-plus" style={{ fontSize: 10 }} /> Anlaşmalı Kurum Ekle
             </Link>
           )}
         </div>
