@@ -15,9 +15,6 @@ export async function POST(req: NextRequest) {
 
     const result = await callCaniasService('userCheck', [username, password]);
 
-    // GECICI TESHIS LOGU -- userCheck yanitini izlemek icin. Dogrulandiktan sonra kaldirilacak.
-    // Sifre BILEREK loglanmiyor.
-    console.log(`[LOGIN-DEBUG] user="${username}" status=${result.status} response=${JSON.stringify(result.response)}`);
 
     // --- FAIL-CLOSED ---
     // Giris SADECE userCheck birebir "OK" donerse acilir.

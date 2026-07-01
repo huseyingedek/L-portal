@@ -32,7 +32,7 @@ export const sessionOptions: SessionOptions = {
   cookieOptions: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false, // Apache HTTP uzerinden calisiyor; HTTPS'e gecince true yapilmali
+    secure: process.env.NODE_ENV === 'production', // canli (HTTPS) -> true, yerel dev (http) -> false
     maxAge: ALTI_SAAT,
   },
 };

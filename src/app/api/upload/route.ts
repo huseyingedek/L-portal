@@ -47,6 +47,6 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(join(uploadDir, safeName), buffer);
 
-  const url = `/${module}/upload/${safeName}`;
+  const url = `/api/media/${module}/upload/${safeName}`;
   return NextResponse.json({ uploaded: 1, fileName: safeName, url });
 }
