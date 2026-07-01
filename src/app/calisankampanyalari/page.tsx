@@ -34,7 +34,7 @@ export default async function CalisanKampanyalariPage() {
     rows = result;
   } catch { dbError = true; }
 
-  const canEdit = true;
+  const canEdit = false; // Ekleme gecici olarak pasif
 
   return (
     <PageShell usern={session.usern}>
