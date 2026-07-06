@@ -38,12 +38,26 @@ function buildImgSrc(raw: any): string {
   return `data:image/png;base64,${first.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')}`;
 }
 
+// Ham base64'ü temiz data-URI'ye çevirir: tüm boşluk/satır sonu/PEM işaretlerini atar,
+// içerik türünü (PNG/JPEG/GIF/WEBP/PDF) base64 imzasından tespit eder.
+function toDataUri(raw: string): string {
+  const b64 = String(raw ?? '').replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
+  if (b64.length < 10) return '';
+  let mime = 'image/png';
+  if (b64.startsWith('/9j/')) mime = 'image/jpeg';
+  else if (b64.startsWith('iVBORw0KGgo')) mime = 'image/png';
+  else if (b64.startsWith('R0lGOD')) mime = 'image/gif';
+  else if (b64.startsWith('UklGR')) mime = 'image/webp';
+  else if (b64.startsWith('JVBER')) mime = 'application/pdf';
+  return `data:${mime};base64,${b64}`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getPictureSrcs(parsed: any): string[] {
   const rows = extractPictureRows(parsed);
   return rows.flatMap(row => {
     const sources = [row?.PICTURE, row?.IMST, row?.IMSTBT, row?.IMGBASE64];
-    return sources.flatMap(src => extractRawImages(src)).map(raw => raw.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')).filter((raw: any) => typeof raw === 'string' && raw.length >= 10).map((raw: string) => `data:image/png;base64,${raw}`);
+    return sources.flatMap(src => extractRawImages(src)).map(raw => toDataUri(raw)).filter(s => s.length > 0);
   });
 }
 
@@ -290,7 +304,22 @@ export default function FaturaOnayClient() {
             {fisModal.loading ? <p>Yukleniyor...</p>
               : fisModal.imgSrcs && fisModal.imgSrcs.length > 0 ? (
                 <>
-                  <img src={fisModal.imgSrcs[fisModal.activeIndex ?? 0]} alt={`Fis ${fisModal.activeIndex! + 1}`} className="df-modal-img" />
+                  {fisModal.imgSrcs[fisModal.activeIndex ?? 0]?.startsWith('data:application/pdf')
+                    ? <iframe
+                        key={fisModal.activeIndex ?? 0}
+                        src={fisModal.imgSrcs[fisModal.activeIndex ?? 0]}
+                        title="Fis"
+                        style={{ width: '100%', height: 480, border: 'none', background: '#fff' }}
+                      />
+                    : <img
+                        key={fisModal.activeIndex ?? 0}
+                        src={fisModal.imgSrcs[fisModal.activeIndex ?? 0]}
+                        alt={`Fis ${(fisModal.activeIndex ?? 0) + 1}`}
+                        className="df-modal-img"
+                        style={{ opacity: 0, transition: 'opacity 0.2s ease' }}
+                        onLoad={e => { e.currentTarget.style.opacity = '1'; }}
+                        onError={e => { e.currentTarget.style.opacity = '1'; }}
+                      />}
                   {fisModal.imgSrcs.length > 1 && (
                     <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                       {fisModal.imgSrcs.map((_, index) => (
