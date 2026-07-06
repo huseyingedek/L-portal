@@ -71,14 +71,32 @@ export default function FaturaOnayClient() {
 
   async function search() {
     setLoading(true);
-    const [y, m, d] = filters.exp_date.split('-');
-    const payload = { ...filters, exp_date: `${y}/${parseInt(m)}/${parseInt(d)}` };
+    const comp = filters.exp_comp.trim();
+    const docn = filters.exp_docn.trim();
+    // Firma veya Belge No girildiyse tarihi yok say (o belgeyi tüm tarihlerde ara).
+    // Aksi hâlde girilen tarihte gün-gün ara. Tarih boşsa /NaN/NaN yerine '' gönder.
+    let exp_date = '';
+    if (!comp && !docn && filters.exp_date) {
+      const [y, m, d] = filters.exp_date.split('-');
+      exp_date = `${y}/${parseInt(m)}/${parseInt(d)}`;
+    }
+    const payload = { ...filters, exp_date };
     const res  = await fetch('/api/expenses/shareddoc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-      const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW;
-      setDocs(Array.isArray(rows) ? rows : rows ? [rows] : []);
+      const rows = Array.isArray(parsed) ? parsed : (parsed?.Records?.ROW ?? parsed?.ROW);
+      let list: SharedDoc[] = Array.isArray(rows) ? rows : rows ? [rows] : [];
+      // Güvenlik ağı: Canias belge no / firma'yı sunucuda süzmezse istemcide süz.
+      if (docn) list = list.filter(x => String(x.SHAREDNUMB ?? '').toLowerCase().includes(docn.toLowerCase()));
+      if (comp) list = list.filter(x => String(x.COMPANY ?? '').includes(comp) || String(x.CLIENT ?? '').includes(comp));
+      // Sadece tarihle arandıysa: Canias o tarih ve SONRASINI döndürüyor → istemcide tam güne indir.
+      if (!comp && !docn && filters.exp_date) {
+        const [yy, mm, dd] = filters.exp_date.split('-');
+        const gun = `${dd}.${mm}.${yy}`;   // 30.06.2026
+        list = list.filter(x => String(x.DOCDATE ?? '').trim().startsWith(gun));
+      }
+      setDocs(list);
     } catch { setDocs([]); }
     setLoading(false);
   }
@@ -93,7 +111,7 @@ export default function FaturaOnayClient() {
     const data = await res.json();
     try {
       const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-      const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW;
+      const rows = Array.isArray(parsed) ? parsed : (parsed?.Records?.ROW ?? parsed?.ROW);
       setDetails(d => ({ ...d, [key]: Array.isArray(rows) ? rows : rows ? [rows] : [] }));
     } catch { setDetails(d => ({ ...d, [key]: [] })); }
   }
@@ -120,7 +138,7 @@ export default function FaturaOnayClient() {
       const data = await res.json();
       try {
         const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-        const rows = Array.isArray(parsed) ? parsed : parsed?.Records?.ROW;
+        const rows = Array.isArray(parsed) ? parsed : (parsed?.Records?.ROW ?? parsed?.ROW);
         items = Array.isArray(rows) ? rows : rows ? [rows] : [];
         setDetails(d => ({ ...d, [doc.SHAREDNUMB]: items! }));
       } catch { items = []; }
