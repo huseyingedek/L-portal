@@ -6,6 +6,7 @@ import db from '@/lib/db';
 import Link from 'next/link';
 import PageShell from '@/components/PageShell';
 import DbErrorBanner from '@/components/DbErrorBanner';
+import KurumActions from './KurumActions';
 
 const RENKLER = [
   '#d63050','#34d399','#f59e0b','#f87171','#60a5fa',
@@ -17,8 +18,15 @@ interface Kampanya {
   kampanya_baslik: string;
   kampanya_gorsel_baslik: string;
   kampanya_dosya_adi: string;
+  kampanya_gecerlilik: string | Date | null;
 }
 
+function formatGecerlilik(v: string | Date | null): string {
+  if (!v) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
 
 export default async function CalisanKampanyalariPage() {
   const cookieStore = await cookies();
@@ -34,7 +42,7 @@ export default async function CalisanKampanyalariPage() {
     rows = result;
   } catch { dbError = true; }
 
-  const canEdit = false; // Ekleme gecici olarak pasif
+  const canEdit = true; // Ekleme aktif
 
   return (
     <PageShell usern={session.usern}>
@@ -58,19 +66,36 @@ export default async function CalisanKampanyalariPage() {
           <div className="grid-content">
             {rows.map((row, i) => {
               const renk = RENKLER[i % RENKLER.length];
+              const slug = row.kampanya_dosya_adi.replace(/^\.\//, '').replace('.php', '');
+              const gecerli = formatGecerlilik(row.kampanya_gecerlilik);
               return (
-                <Link key={i} href={`/calisankampanyalari/${encodeURIComponent(row.kampanya_dosya_adi.replace(/^\.\//, '').replace('.php', ''))}`} className="pcard">
-                  <div className="pcard-icon" style={{ backgroundColor: renk + '18' }}>
-                    <div className="pcard-icon-inner" style={{ backgroundColor: renk }}>
-                      <i className="fa-solid fa-tag" />
+                <div key={i} style={{ position: 'relative' }}>
+                  <Link href={`/calisankampanyalari/${encodeURIComponent(slug)}`} className="pcard">
+                    <div className="pcard-icon" style={{ backgroundColor: renk + '18' }}>
+                      <div className="pcard-icon-inner" style={{ backgroundColor: renk }}>
+                        <i className="fa-solid fa-tag" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="pcard-body">
-                    <p className="pcard-title">{row.kampanya_gorsel_baslik}</p>
-                    <p className="pcard-desc" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.kampanya_baslik}</p>
-                  </div>
-                  <div className="pcard-bar" style={{ backgroundColor: renk }} />
-                </Link>
+                    <div className="pcard-body">
+                      <p className="pcard-title">{row.kampanya_gorsel_baslik}</p>
+                      <p className="pcard-desc" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.kampanya_baslik}</p>
+                      {gecerli && (
+                        <p className="pcard-desc" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                          <i className="far fa-calendar" style={{ marginRight: 4 }} />Geçerlilik: {gecerli}
+                        </p>
+                      )}
+                    </div>
+                    <div className="pcard-bar" style={{ backgroundColor: renk }} />
+                  </Link>
+                  {canEdit && (
+                    <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
+                      <KurumActions
+                        dosyaAdi={row.kampanya_dosya_adi}
+                        editHref={`/calisankampanyalari/duzenle/${encodeURIComponent(slug)}`}
+                      />
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

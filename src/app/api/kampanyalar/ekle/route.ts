@@ -20,16 +20,17 @@ export async function POST(req: NextRequest) {
   if (session.login !== 1) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
 
   const body = await req.json();
-  const { kampanya_icerik, kampanya_gorsel_baslik, kampanya_baslik } = body;
+  const { kampanya_icerik, kampanya_gorsel_baslik, kampanya_baslik, kampanya_gecerlilik } = body;
 
   if (!kampanya_icerik) return NextResponse.json({ error: 'İçerik boş olamaz' }, { status: 400 });
 
   const kampanya_tarih = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const dosya_adi = dosyaAdiOlustur(kampanya_gorsel_baslik);
+  const gecerlilik = kampanya_gecerlilik ? String(kampanya_gecerlilik).slice(0, 10) : null;
 
   await db.query(
-    'INSERT INTO KAMPANYALAR (kampanya_baslik, kampanya_gorsel_baslik, kampanya_icerik, kampanya_tarih, kampanya_dosya_adi) VALUES (?, ?, ?, ?, ?)',
-    [kampanya_baslik, kampanya_gorsel_baslik, kampanya_icerik, kampanya_tarih, dosya_adi]
+    'INSERT INTO KAMPANYALAR (kampanya_baslik, kampanya_gorsel_baslik, kampanya_icerik, kampanya_tarih, kampanya_dosya_adi, kampanya_gecerlilik) VALUES (?, ?, ?, ?, ?, ?)',
+    [kampanya_baslik, kampanya_gorsel_baslik, kampanya_icerik, kampanya_tarih, dosya_adi, gecerlilik]
   );
 
   return NextResponse.json({ success: true });
