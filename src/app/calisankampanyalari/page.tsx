@@ -53,10 +53,10 @@ export default async function CalisanKampanyalariPage() {
           {canEdit && (
             <Link href="/calisankampanyalari/ekle" style={{
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
-              padding: '6px 14px', borderRadius: 8, color: 'white',
+              padding: '6px 14px', borderRadius: 8, color: 'white', marginLeft: 'auto',
               backgroundColor: 'var(--color-primary, #d63050)',
             }}>
-              <i className="fas fa-plus" style={{ fontSize: 10 }} /> Anlaşmalı Kurum Ekle
+              <i className="fas fa-plus" style={{ fontSize: 10 }} /> Kurum Ekle
             </Link>
           )}
         </div>

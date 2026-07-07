@@ -149,8 +149,24 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
         .ck.ck-content h1, .ck.ck-content h2, .ck.ck-content h3,
         .ck.ck-content h4, .ck.ck-content strong, .ck.ck-content a { color: #1a1a2e; }
         .ck.ck-content a { color: #1d4ed8; }
+        .kf-responsive .df-table { table-layout: fixed; }
+        .kf-responsive .df-inp, .kf-responsive .df-inp-full { box-sizing: border-box; max-width: 100%; }
+        .kf-responsive img { max-width: 100%; height: auto; }
+        @media (max-width: 640px) {
+          .kf-responsive .df-table,
+          .kf-responsive .df-table tbody,
+          .kf-responsive .df-table tr,
+          .kf-responsive .df-table td { display: block; width: 100%; }
+          .kf-responsive .df-table td { border: none; padding: 4px 0; }
+          .kf-responsive .df-table tr { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
+          .kf-responsive .df-table .df-label {
+            background: none; text-align: left; padding: 8px 0 2px; text-transform: uppercase;
+            font-size: 11px; letter-spacing: 0.05em;
+          }
+          .kf-responsive .df-inp, .kf-responsive .df-inp-full { width: 100%; }
+        }
       `}</style>
-      <div className="df-page-narrow">
+      <div className="df-page-narrow kf-responsive">
         <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginBottom: 24 }}>
           {duzenle ? 'Anlaşmalı Kurum Düzenle' : 'Anlaşmalı Kurum Ekle'}
         </h1>

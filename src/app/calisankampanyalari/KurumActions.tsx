@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -21,7 +22,10 @@ export default function KurumActions({ dosyaAdi, editHref }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saniye, setSaniye] = useState(3);
   const [busy, setBusy] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Menü dışına tıklayınca kapat
   useEffect(() => {
@@ -108,7 +112,7 @@ export default function KurumActions({ dosyaAdi, editHref }: Props) {
         </div>
       )}
 
-      {confirmOpen && (
+      {confirmOpen && mounted && createPortal(
         <div
           className="df-modal-overlay"
           onClick={() => { if (!busy) setConfirmOpen(false); }}
@@ -145,7 +149,8 @@ export default function KurumActions({ dosyaAdi, editHref }: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
