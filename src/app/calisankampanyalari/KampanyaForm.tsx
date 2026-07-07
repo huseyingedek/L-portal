@@ -21,6 +21,13 @@ function ckeditorHazir(): Promise<void> {
   });
 }
 
+// İçeriğin başındaki ana görseli (figure.image) ayırır: {src, rest}
+function ayirGorsel(html: string): { src: string; rest: string } {
+  const m = html.match(/<figure[^>]*class="[^"]*image[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]*)"[^>]*>[\s\S]*?<\/figure>/i);
+  if (m) return { src: m[1], rest: html.replace(m[0], '').trim() };
+  return { src: '', rest: html };
+}
+
 export interface KampanyaInitial {
   kampanya_gorsel_baslik: string;
   kampanya_baslik: string;
@@ -40,7 +47,10 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
   const [gorselBaslik, setGorselBaslik] = useState(initial?.kampanya_gorsel_baslik ?? '');
   const [baslik, setBaslik]             = useState(initial?.kampanya_baslik ?? '');
   const [gecerlilik, setGecerlilik]     = useState(initial?.kampanya_gecerlilik ?? '');
-  const [gorsel, setGorsel]             = useState('');
+  // Duzenlemede mevcut gorsel icerikten ayrilir; ayri alanda yonetilir.
+  const [gorsel, setGorsel] = useState(() =>
+    duzenle && initial?.kampanya_icerik ? ayirGorsel(initial.kampanya_icerik).src : ''
+  );
   const [gorselYukleniyor, setGorselYukleniyor] = useState(false);
   const [msg, setMsg]                   = useState('');
   const [loading, setLoading]           = useState(false);
@@ -63,7 +73,10 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
     }).then((ed: any) => {
       if (!ed) return;
       if (destroyed) { ed.destroy(); return; }
-      if (initial?.kampanya_icerik) ed.setData(initial.kampanya_icerik);
+      // Duzenlemede gorseli ayirdiktan sonra kalan icerik editore yuklenir (gorsel editore girmez).
+      const icerik = initial?.kampanya_icerik ?? '';
+      const rest = duzenle && icerik ? ayirGorsel(icerik).rest : icerik;
+      if (rest) ed.setData(rest);
       editor = ed;
       editorRef.current = ed;
     }).catch(() => {});
@@ -73,7 +86,7 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
       if (editor) { editor.destroy().catch(() => {}); editor = null; }
       editorRef.current = null;
     };
-  }, [initial]);
+  }, [duzenle, initial]);
 
   async function handleGorsel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -85,7 +98,7 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
       fd.append('upload', file);
       const res = await fetch('/api/upload?module=calisankampanyalari', { method: 'POST', body: fd });
       const data = await res.json();
-      if (data.url) setGorsel(data.url);
+      if (data.url) setGorsel(data.url); // yeni gorsel eskisinin yerini alir
       else setMsg(data.error?.message || 'Görsel yüklenemedi.');
     } catch {
       setMsg('Görsel yüklenirken hata oluştu.');
@@ -98,7 +111,7 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
     e.preventDefault();
     const editor = editorRef.current as { getData: () => string } | null;
     const icerik = editor ? editor.getData() : '';
-    // Yeni yuklenen gorsel icerigin basina eklenir; duzenlemede eski gorsel zaten icerikte.
+    // Tek ana gorsel: secili olan (yeni ya da korunan) icerigin basina eklenir. Kaldirildiysa hic eklenmez.
     const gorselHtml = gorsel ? `<figure class="image"><img src="${gorsel}"></figure>` : '';
     const finalIcerik = gorselHtml + icerik;
     if (!finalIcerik.trim()) { setMsg('İçerik veya görsel ekleyin.'); return; }
@@ -164,25 +177,30 @@ export default function KampanyaForm({ mode, slug, initial }: Props) {
               </tr>
               <tr>
                 <td className="df-label">Geçerlilik Tarihi</td>
-                <td>
-                  <input type="date" className="df-inp" value={gecerlilik} onChange={e => setGecerlilik(e.target.value)} />
-                  <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>(bilgilendirme amaçlı, boş bırakılabilir)</span>
-                </td>
+                <td><input type="date" className="df-inp" value={gecerlilik} onChange={e => setGecerlilik(e.target.value)} /></td>
               </tr>
               <tr>
                 <td className="df-label" style={{ verticalAlign: 'top', paddingTop: 10 }}>Görsel</td>
                 <td>
-                  <input type="file" accept="image/*" onChange={handleGorsel} />
-                  {gorselYukleniyor && <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>Yükleniyor...</span>}
-                  {gorsel && (
-                    <div style={{ marginTop: 10 }}>
+                  {gorsel ? (
+                    <div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={gorsel} alt="Görsel" style={{ maxWidth: 240, borderRadius: 8, border: '1px solid var(--border)' }} />
+                      <img src={gorsel} alt="Görsel" style={{ maxWidth: 240, borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} />
+                      <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <label style={{ cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
+                          Değiştir
+                          <input type="file" accept="image/*" onChange={handleGorsel} style={{ display: 'none' }} />
+                        </label>
+                        <button type="button" onClick={() => setGorsel('')} style={{ cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 8, border: '1px solid rgba(248,113,113,0.4)', background: 'var(--surface)', color: '#f87171' }}>
+                          Kaldır
+                        </button>
+                        {gorselYukleniyor && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Yükleniyor...</span>}
+                      </div>
                     </div>
-                  )}
-                  {duzenle && !gorsel && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                      Mevcut görsel içerikte korunur. Yeni görsel seçerseniz başa eklenir.
+                  ) : (
+                    <div>
+                      <input type="file" accept="image/*" onChange={handleGorsel} />
+                      {gorselYukleniyor && <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>Yükleniyor...</span>}
                     </div>
                   )}
                 </td>

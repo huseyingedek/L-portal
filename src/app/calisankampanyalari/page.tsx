@@ -25,7 +25,8 @@ function formatGecerlilik(v: string | Date | null): string {
   if (!v) return '';
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d.getTime())) return '';
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  // DB bağlantısı timezone +03:00 kullanıyor; İstanbul saatinde göster ki gün kaymasın.
+  return d.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' });
 }
 
 export default async function CalisanKampanyalariPage() {

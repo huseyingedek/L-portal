@@ -17,7 +17,8 @@ function toISODate(v: string | Date | null): string {
   if (!v) return '';
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // DB bağlantısı timezone +03:00 kullanıyor; İstanbul saatinde formatla ki gün kaymasın.
+  return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
 }
 
 export default async function KampanyaDuzenlePage({ params }: { params: Promise<{ slug: string }> }) {
