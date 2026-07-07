@@ -118,8 +118,17 @@ export default function KurumActions({ dosyaAdi, editHref }: Props) {
               <i className="fas fa-triangle-exclamation" style={{ color: '#f87171' }} /> Kurumu Sil
             </h5>
             <p>Bu anlaşmalı kurumu kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz.</p>
-            <div style={{ marginTop: 18, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="df-btn-kapat" onClick={() => setConfirmOpen(false)} disabled={busy}>
+            <div style={{ marginTop: 18, display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                disabled={busy}
+                style={{
+                  flex: 1, padding: '9px 0', borderRadius: 8, fontWeight: 600, fontSize: 13,
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                  border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)',
+                }}
+              >
                 Vazgeç
               </button>
               <button
@@ -127,10 +136,9 @@ export default function KurumActions({ dosyaAdi, editHref }: Props) {
                 onClick={sil}
                 disabled={silPasif}
                 style={{
-                  padding: '8px 18px', borderRadius: 8, border: 'none', fontWeight: 600, minWidth: 104,
+                  flex: 1, padding: '9px 0', borderRadius: 8, fontWeight: 600, fontSize: 13,
                   cursor: silPasif ? 'not-allowed' : 'pointer',
-                  background: silPasif ? 'rgba(239,68,68,0.35)' : '#ef4444',
-                  color: '#fff',
+                  border: 'none', background: silPasif ? 'rgba(239,68,68,0.35)' : '#ef4444', color: '#fff',
                 }}
               >
                 {busy ? 'Siliniyor...' : saniye > 0 ? `Sil (${saniye})` : 'Sil'}

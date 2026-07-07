@@ -48,7 +48,7 @@ export default async function CalisanKampanyalariPage() {
   return (
     <PageShell usern={session.usern}>
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 28 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Anlaşmalı Kurumlar</h1>
           {canEdit && (
             <Link href="/calisankampanyalari/ekle" style={{
