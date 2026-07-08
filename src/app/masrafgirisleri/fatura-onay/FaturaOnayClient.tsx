@@ -30,14 +30,6 @@ function extractRawImages(raw: any): string[] {
   return [];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildImgSrc(raw: any): string {
-  const values = extractRawImages(raw);
-  const first = values.find(v => typeof v === 'string' && v.length >= 10);
-  if (!first) return '';
-  return `data:image/png;base64,${first.replace('-----BEGIN CERTIFICATE-----', '').replace('-----END CERTIFICATE-----', '')}`;
-}
-
 // Ham base64'ü temiz data-URI'ye çevirir: tüm boşluk/satır sonu/PEM işaretlerini atar,
 // içerik türünü (PNG/JPEG/GIF/WEBP/PDF) base64 imzasından tespit eder.
 function toDataUri(raw: string): string {
