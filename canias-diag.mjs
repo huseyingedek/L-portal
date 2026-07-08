@@ -50,10 +50,10 @@ const [loginRes] = await client.loginAsync(LOGIN_ARGS);
 const sid = parseRaw(loginRes?.loginReturn ?? loginRes);
 console.log('sid =', sid);
 
-// 3) Logout'u BİZİM yaptığımız gibi (isimle: sessionid) dene
-console.log('\n==================== LOGOUT (sessionid ile) ====================');
+// 3) Logout'u DOĞRU param adıyla (p_strSessionId) dene
+console.log('\n==================== LOGOUT (p_strSessionId ile) ====================');
 try {
-  const [logoutRes] = await client.logoutAsync({ sessionid: sid });
+  const [logoutRes] = await client.logoutAsync({ p_strSessionId: sid });
   console.log('logout yanıtı =', JSON.stringify(logoutRes));
   console.log('son giden XML =', client.lastRequest);
 } catch (e) {
