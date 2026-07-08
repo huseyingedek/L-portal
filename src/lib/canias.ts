@@ -78,7 +78,9 @@ const leakedSids = new Map<string, number>();
 
 async function tryLogout(client: Client, sid: string, label: string): Promise<boolean> {
   try {
-    await withTimeout(client.logoutAsync({ sessionid: sid }), LOGOUT_TIMEOUT_MS, `logout-${label}`);
+    // WSDL'de logout parametresinin adı 'p_strSessionId' (callIASService'teki 'sessionid' DEĞİL).
+    // Yanlış ad gönderilirse SOAP çağrısı OK döner ama oturumu kapatmaz.
+    await withTimeout(client.logoutAsync({ p_strSessionId: sid }), LOGOUT_TIMEOUT_MS, `logout-${label}`);
     console.log(`[CANIAS] logout OK (${label}): ${connId(sid)}`);
     return true;
   } catch (e) {
