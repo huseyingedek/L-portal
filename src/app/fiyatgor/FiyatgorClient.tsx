@@ -6,7 +6,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { NotFoundException } from '@zxing/library';
 
 interface UrunRow {
-  BARKOD: string; URUNADI: string; SONFIYAT: string; SABITFIYAT: string;
+  BARKOD: string; URUNADI: string; SONFIYAT: string; SABITFIYAT: string; MAMETIPRICE: string;
   SPRICECURRENCY: string; DIAMOND: string | number; COLORCLARITY: string;
   COLORSTONE: string | string[]; GOLDK: string; AGIRLIK: string;
   STOKDURUMU: string | number; STOKACIKLAMA: string; IMGBASE64: string;
@@ -855,6 +855,8 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
   const { product, options, qty } = item;
   const unitPrice  = Number(product.SONFIYAT);
   const totalPrice = unitPrice * qty;
+  const listPrice  = Number(product.MAMETIPRICE);           // üstü çizili liste fiyatı
+  const showList   = listPrice > unitPrice;                  // sadece indirim varsa göster
   const hasOptions = options.length > 1;
 
   const [offset, setOffset]     = useState(0);
@@ -987,6 +989,11 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                 <div style={{ fontSize: 11, color: '#aaa', marginBottom: 1 }}>
                   {qty > 1 ? `${f(unitPrice)} ₺ × ${qty}` : 'Birim Fiyat'}
                 </div>
+                {showList && (
+                  <div style={{ fontSize: 13, color: '#999', textDecoration: 'line-through', lineHeight: 1.2 }}>
+                    {f(listPrice * qty)} ₺
+                  </div>
+                )}
                 <div style={{ fontSize: 21, fontWeight: 800, color: '#c53030', lineHeight: 1 }}>
                   {f(totalPrice)} ₺
                 </div>

@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       ana_data['ROW']['URUNADI']       = value['DETCOLOR'] || '';
       ana_data['ROW']['SONFIYAT']      = value['SPRICE'] || '';
       ana_data['ROW']['SABITFIYAT']    = value['SABITFIYAT'] || '';
+      ana_data['ROW']['MAMETIPRICE']   = value['MAMETIPRICE'] || '';
       ana_data['ROW']['GOLDK']         = value['ISMATGRP'] || '';
       ana_data['ROW']['AGIRLIK']       = value['QUANTITYX'] || '';
       ana_data['ROW']['STOKDURUMU']    = value['ISSTCK'] || '';
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
       ana_data[key]['URUNADI']       = value['DETCOLOR'] || '';
       ana_data[key]['SONFIYAT']      = value['SPRICE'] || '';
       ana_data[key]['SABITFIYAT']    = value['SABITFIYAT'] || '';
+      ana_data[key]['MAMETIPRICE']   = value['MAMETIPRICE'] || '';
       ana_data[key]['GOLDK']         = value['ISMATGRP'] || '';
       ana_data[key]['AGIRLIK']       = value['QUANTITYX'] || '';
       ana_data[key]['STOKDURUMU']    = value['ISSTCK'] || '';
