@@ -990,7 +990,11 @@ function CartCard({ item, onQty, onRemove, onStoreChange }: CartCardProps) {
                   {qty > 1 ? `${f(unitPrice)} ₺ × ${qty}` : 'Birim Fiyat'}
                 </div>
                 {showList && (
-                  <div style={{ fontSize: 13, color: '#999', textDecoration: 'line-through', lineHeight: 1.2 }}>
+                  <div style={{
+                    fontSize: 16, fontWeight: 700, color: '#1a1a1a',
+                    textDecoration: 'line-through', textDecorationColor: '#c53030',
+                    textDecorationThickness: 2, lineHeight: 1.15,
+                  }}>
                     {f(listPrice * qty)} ₺
                   </div>
                 )}
